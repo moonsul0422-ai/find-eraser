@@ -1405,9 +1405,13 @@ function buildBookRow(cx,height,seed,dir){
 }
 function buildLibrary(){
   Carts=[];
-  const floorTex=canvasTex(256,256,(g,w,h)=>{ g.fillStyle="#b98a5a";g.fillRect(0,0,w,h);
-    g.strokeStyle="rgba(90,60,30,.4)";g.lineWidth=2;
-    for(let i=0;i<6;i++){g.beginPath();g.moveTo(0,i*42);g.lineTo(w,i*42);g.stroke();} },6,5);
+  const floorTex=canvasTex(256,256,(g,w,h)=>{
+    for(let i=0;i<7;i++){ g.fillStyle=i%2?"#bd8f56":"#c69a63"; g.fillRect(0,i*38,w,38); }  // 원목 플랭크(교차 톤)
+    g.strokeStyle="rgba(90,60,30,.35)";g.lineWidth=2;
+    for(let i=0;i<8;i++){g.beginPath();g.moveTo(0,i*38);g.lineTo(w,i*38);g.stroke();}
+    g.strokeStyle="rgba(120,85,45,.16)";g.lineWidth=1;                                       // 나뭇결
+    for(let i=0;i<44;i++){const y=Math.random()*h;g.beginPath();g.moveTo(0,y);g.lineTo(w,y+(Math.random()-0.5)*6);g.stroke();}
+  },6,5);
   buildRoomShell(lambert({map:floorTex}),0xead9bd,0xf4efe3,0x8a5a33);
 
   // 좌우 책장 4줄씩(총 8줄), 통로 폭 6. 바깥=높은 서가(20), 안=일반(12)/그림책(6)
@@ -1418,13 +1422,19 @@ function buildLibrary(){
   // 높은 서가(20) 꼭대기까지 계단식 등반 — 좌측 뒤 코너
   addStairs(-52,32,1,0,20,5,1.25,2.0,[lambert({color:0x8a5a33})]);
 
-  // ── 중앙 열람존: 열람 테이블 4개 + 초록 갓 스탠드 + 의자 ──
+  // ── 중앙 열람존: 열람 테이블 4개 + 초록 갓 스탠드 + 천장 펜던트 + 마주보는 의자 ──
+  const cordMat=lambert({color:0x2b2b2b});
   [[-7,-15],[7,-15],[-7,15],[7,15]].forEach(([tx,tz])=>{
     addBox(9,0.5,6,lambert({color:0x9a6b3f}),tx,3.0,tz);                  // 테이블
     [[-3.7,-2.4],[3.7,-2.4],[-3.7,2.4],[3.7,2.4]].forEach(([lx,lz])=>addBox(0.6,3,0.6,lambert({color:0x7a5230}),tx+lx,1.5,tz+lz));
     addCyl(0.2,2,lambert({color:0x3f9d5a}),tx,4.2,tz,{rt:0.2,collide:false});
-    addCyl(1.1,1,lambert({color:0x2f8f4e}),tx,5.4,tz,{rt:0.6,collide:false,sample:true}); // 초록 갓
-    addBox(1.8,1.4,1.8,lambert({color:0x4A7FB5}),tx+5.5,0.7,tz);         // 의자
+    addCyl(1.1,1,lambert({color:0x2f8f4e}),tx,5.4,tz,{rt:0.6,collide:false,sample:true}); // 초록 갓 스탠드
+    // 천장에서 내려오는 펜던트 조명(참고 이미지의 매달린 등)
+    addCyl(0.05,WALL_H-11,cordMat,tx,(WALL_H+11)/2,tz,{collide:false,sample:false});        // 전선
+    addCyl(1.5,2.4,lambert({color:0xf6efd8,emissive:0x2a2820,emissiveIntensity:0.3}),tx,11,tz,{rt:0.4,collide:false,sample:false}); // 갓
+    // 마주보는 의자 2개(테이블을 사이에 두고 z축 양쪽)
+    addBox(1.8,1.4,1.8,lambert({color:0x4A7FB5}),tx,0.7,tz-4.3);
+    addBox(1.8,1.4,1.8,lambert({color:0xcaa06a}),tx,0.7,tz+4.3);
   });
 
   // ── 앞(-z): 사서 데스크(ㄱ자) + 반납함(리필: 잉크병) + 신간 전시대 ──
@@ -1454,6 +1464,63 @@ function buildLibrary(){
     .forEach(([cc,x,z])=>addCyl(2,1.2,lambert({color:cc}),x,0.6,z,{rt:2.2,sample:true}));
   addBox(10,3,4,lambert({color:0xe07f3e}),50,1.5,38,{sample:true});
   addBox(10,3,1,lambert({color:0xd06a2a}),50,3,40,{sample:true});
+
+  // ================================================================
+  // 참고 이미지 반영: 창밖 나무가 보이는 큰 창 · 창가 독서코너 · 실내 화분나무 · 분류 라벨
+  // ================================================================
+  // 창밖 풍경(하늘 + 초록 나무) 텍스처
+  const windowTex=canvasTex(256,256,(g,w,h)=>{
+    const sky=g.createLinearGradient(0,0,0,h); sky.addColorStop(0,"#bfe3f2"); sky.addColorStop(0.6,"#dff1e6"); sky.addColorStop(1,"#eef7ea");
+    g.fillStyle=sky; g.fillRect(0,0,w,h);
+    const greens=["#6fae4b","#5b9a3e","#7cbe57","#4f8a39","#8ac36a"];
+    for(let i=0;i<34;i++){ g.fillStyle=greens[i%greens.length];
+      const cx=Math.random()*w, cy=h*0.30+Math.random()*h*0.55, r=16+Math.random()*30;
+      g.globalAlpha=0.9; g.beginPath(); g.arc(cx,cy,r,0,7); g.fill(); }
+    g.globalAlpha=1; g.fillStyle="#7a5a3a";
+    for(let i=0;i<6;i++){ const x=14+i*44; g.fillRect(x,h*0.62,6,h*0.4); }
+  });
+  // 측면 벽 고창(高窓): 서가 위로 바깥 나무가 보임 (좌우 벽)
+  [-1,1].forEach(sgn=>{
+    const wx=sgn*(ROOM_W/2-0.6);
+    const win=new THREE.Mesh(new THREE.PlaneGeometry(64,16),lambert({map:windowTex}));
+    win.position.set(wx,34,0); win.rotation.y=-sgn*Math.PI/2; mapRoot.add(win); samplables.push(win);
+    [-32,0,32].forEach(fz=>addBox(0.5,17,1.2,lambert({color:0xf2ede1}),wx-sgn*0.1,34,fz,{collide:false,sample:false})); // 세로 창틀
+    addBox(0.5,1.1,64,lambert({color:0xf2ede1}),wx-sgn*0.1,26,0,{collide:false,sample:false});                       // 아래 가로
+    addBox(0.5,1.1,64,lambert({color:0xf2ede1}),wx-sgn*0.1,42,0,{collide:false,sample:false});                       // 위 가로
+  });
+  // 창가 독서 코너(정면 중앙): 큰 창 + 낮은 테이블 + 마주보는 의자 2개 (이미지 1·5)
+  const nook=new THREE.Mesh(new THREE.PlaneGeometry(20,18),lambert({map:windowTex}));
+  nook.position.set(-3,13,-ROOM_D/2+1.05); mapRoot.add(nook); samplables.push(nook);
+  addBox(21,0.9,0.6,lambert({color:0xf2ede1}),-3,4,-ROOM_D/2+1.2,{collide:false,sample:false});
+  addBox(21,0.9,0.6,lambert({color:0xf2ede1}),-3,22,-ROOM_D/2+1.2,{collide:false,sample:false});
+  addBox(0.8,18,0.6,lambert({color:0xf2ede1}),-13,13,-ROOM_D/2+1.2,{collide:false,sample:false});
+  addBox(0.8,18,0.6,lambert({color:0xf2ede1}),7,13,-ROOM_D/2+1.2,{collide:false,sample:false});
+  addBox(6,2.6,3,lambert({color:0x9a6b3f}),-3,1.3,-ROOM_D/2+4.5);        // 낮은 테이블
+  [[-7,0x4A7FB5],[1,0xE64545]].forEach(([cx,cc])=>{                      // 창 쪽을 보는 의자 2개
+    addBox(2,0.5,2,lambert({color:cc}),cx,1.6,-ROOM_D/2+7);
+    addBox(2,2.2,0.35,lambert({color:cc}),cx,2.7,-ROOM_D/2+8);
+  });
+  // 실내 화분 나무(도서관 곳곳의 초록, 이미지 4) — 화분=낮은 장애물, 잎=머리 위 장식
+  const libTree=(x,z,s)=>{
+    addCyl(0.9*s,1.0*s,lambert({color:0x8a5a33}),x,0.5*s,z,{rt:1.0*s});                                  // 화분(장애물)
+    addCyl(0.95*s,0.3*s,lambert({color:0x5a3f28}),x,1.05*s,z,{rt:0.9*s,collide:false,sample:false});     // 흙
+    addCyl(0.22*s,3.6*s,lambert({color:0x7a5a3a}),x,2.6*s,z,{collide:false});                            // 줄기
+    [[0,4.4,0,1.5],[-0.9,3.9,0.5,1.1],[0.9,4.1,-0.4,1.2],[0.3,5.1,0.2,1.0]].forEach(([ox,oy,oz,r])=>{
+      const f=new THREE.Mesh(new THREE.SphereGeometry(r*s,8,7),lambert({color:0x4f9a3e}));
+      f.position.set(x+ox*s,oy*s,z+oz*s); mapRoot.add(f); samplables.push(f);
+    });
+  };
+  [[0,-15,1.2],[0,15,1.2],[-40,32,1.3],[40,22,1.3],[40,-30,1.1]].forEach(([x,z,s])=>libTree(x,z,s));
+  // 서가 분류 라벨(파란 배너, 이미지 3) — 각 서가 정면(-z) 끝
+  const labelTex=(txt)=>canvasTex(160,44,(g,w,h)=>{ g.fillStyle="#2f5fa6"; g.fillRect(0,0,w,h);
+    g.fillStyle="#fff"; g.fillRect(5,5,w-10,3); g.font="700 22px sans-serif"; g.textAlign="center"; g.textBaseline="middle";
+    g.fillText(txt,w/2,h/2+3); });
+  const hByX={15:6,25:12,35:12,45:20};
+  [["가-나",-45],["다-라",-35],["마-바",-25],["사-아",-15],["자-차",15],["카-타",25],["파-하",35],["동화",45]].forEach(([txt,cx])=>{
+    const y=Math.min(hByX[Math.abs(cx)]-1.2,8);
+    const s=new THREE.Mesh(new THREE.PlaneGeometry(3.4,0.94),lambert({map:labelTex(txt)}));
+    s.position.set(cx,y,-30.2); s.rotation.y=Math.PI; mapRoot.add(s); samplables.push(s);
+  });
 
   // 스폰: 술래 3곳(중앙 열람존 무가구) / 지우개 12곳(통로·열람존)
   seekerSpawns.push(new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-24),new THREE.Vector3(0,0,24));
