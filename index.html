@@ -1328,19 +1328,53 @@ function buildCafeteria(){
   },6,5);
   buildRoomShell(lambert({map:floorTex}),0xe6d8c2,0xf3efe6,0xa08a6a);
 
-  // ── 앞(-z): 스테인리스 배식대 + 반찬 트레이 6종(음식색 위장의 성지) ──
-  addBox(46,4.5,6,lambert({color:0xc6ccd2}),-4,2.25,-ROOM_D/2+6);       // 카운터(등반 4.5)
-  addBox(46,0.4,6,lambert({color:0xd8dde2}),-4,4.55,-ROOM_D/2+6,{collide:false});
-  const food=[["김치",0xE64545],["시금치",0x3f9d5a],["계란말이",0xF5C518],
-              ["소시지",0xe07f3e],["밥",0xf7f3e8],["포도",0x8a5ab9]];
-  food.forEach(([_,cc],i)=>{
-    const tx=-24+i*8;
-    addBox(6.4,0.5,4.6,lambert({color:0xb9bfc5}),tx,4.85,-ROOM_D/2+6,{collide:false}); // 트레이
-    for(let k=0;k<7;k++) addBox(0.9,0.9,0.9,lambert({color:cc}),
-      tx-2.4+(k%4)*1.4,5.3,-ROOM_D/2+4.6+Math.floor(k/4)*1.5,{collide:false,sample:true});
-  });
-  refillZones.push({x:14,z:-ROOM_D/2+6,r:6,yMin:0,yMax:7,label:"소스 코너"});
-  addBox(3,3,3,lambert({color:0xd7263d}),14,5.9,-ROOM_D/2+6,{collide:false,sample:true}); // 소스통
+  // ── 앞(-z): 스테인리스 뷔페 배식대 + 반찬 10종(디테일) + 유리 가림막 + 접시탑 + 가격표 ──
+  const czf=-ROOM_D/2+6;                                                // 배식대 z
+  addBox(60,4.5,6,lambert({color:0xc6ccd2}),0,2.25,czf);               // 카운터 몸체(등반 4.5)
+  addBox(60,0.5,6,lambert({color:0x2b2b2f}),0,4.6,czf,{collide:false}); // 검정 화강암 상판
+  // 유리 가림막(스니즈 가드): 뒤 유리 + 위 경사 유리 + 지지 기둥
+  const guard=lambert({color:0xcfe8f2,transparent:true,opacity:0.26});
+  addBox(60,5,0.15,guard,0,7.4,czf-2.7,{collide:false,sample:false});
+  addBox(60,0.25,3.2,guard,0,9.8,czf-1.1,{collide:false,sample:false});
+  addBox(60,0.25,0.25,lambert({color:0xbfc7cc}),0,9.9,czf-2.7,{collide:false,sample:false});
+  for(let gx=-28;gx<=28;gx+=14) addCyl(0.12,5,lambert({color:0x9aa2a8}),gx,7,czf-2.7,{collide:false,sample:false});
+  // 요리별 트레이 헬퍼: 스테인리스 트레이 + 베이스 마운드 + 덩어리 질감 + 고명 + 소스 + 서빙 스푼
+  const dish=(tx,base,chunk,garnish,sauce)=>{
+    addBox(5,0.6,4.6,lambert({color:0x9aa2a8}),tx,4.95,czf,{collide:false,sample:false});     // 트레이 테두리
+    addBox(4.4,0.4,4.0,lambert({color:0x6b7076}),tx,5.02,czf,{collide:false,sample:false});   // 트레이 안쪽
+    if(sauce){
+      addBox(4.2,0.4,3.8,lambert({color:base}),tx,5.3,czf,{collide:false,sample:true});        // 소스/국물 표면
+    }else{
+      addBox(4.0,0.75,3.6,lambert({color:base}),tx,5.45,czf,{collide:false,sample:true});      // 수북한 베이스
+      for(let k=0;k<8;k++) addBox(0.7,0.6,0.7,lambert({color:(k%2)?chunk:base}),
+        tx-1.6+(k%4)*1.05,5.8,czf-1.3+Math.floor(k/4)*1.4,{collide:false,sample:true});         // 덩어리 질감
+    }
+    if(garnish) for(let k=0;k<5;k++) addBox(0.34,0.2,0.34,lambert({color:garnish}),
+      tx-1.5+(k*0.62)%3,5.98,czf-1.4+((k*1.3)%2.8),{collide:false,sample:true});                // 고명(파슬리·깨)
+    addCyl(0.1,3.6,lambert({color:0x2b2b2f}),tx+1.4,6.3,czf-2.6,{rx:-0.5,collide:false,sample:false}); // 서빙 스푼 손잡이
+    addCyl(0.42,0.24,lambert({color:0xc7ccd2}),tx-1.2,5.55,czf+0.4,{rt:0.42,collide:false,sample:false}); // 스푼 볼
+  };
+  // [베이스, 덩어리, 고명, 소스여부] — 후라이드/크림/양파/카레/제육/브로콜리/계란말이/김치/잡채/새우튀김
+  const cafeMenu=[
+    [0xd98a3a,0xb5651d,0xF5C518,false],[0xf0e2a8,0xe8d68a,0x3f9d5a,true],
+    [0x8a4a2a,0xe8dcc8,0,false],[0xe07f3e,0xd7263d,0x3f9d5a,true],
+    [0xc0392b,0x8a2a1e,0xF5C518,false],[0x3f7d3a,0x5a9e4a,0,false],
+    [0xF5C518,0xe0b010,0,false],[0xd7263d,0xb01d30,0x3f9d5a,false],
+    [0x9a6b3f,0x7a4f2a,0xff7eb0,false],[0xe8944a,0xf5c060,0,false],
+  ];
+  const x0=-27, step=54/(cafeMenu.length-1);
+  cafeMenu.forEach((d,i)=>{ const tx=x0+i*step; dish(tx,d[0],d[1],d[2],d[3]);
+    if(i%2) addBox(1.2,0.9,0.1,lambert({color:0xffffff}),tx,5.5,czf+2.5,{collide:false,sample:false}); }); // 가격표 텐트카드
+  // 접시탑(흰 접시 무더기, 이미지 1·5) — 배식대 양끝
+  const plateStack=(x,z,n)=>{ for(let k=0;k<n;k++) addCyl(1.3,0.12,lambert({color:0xf4f4f4}),x,5.0+k*0.14,z,{rt:1.3,collide:false,sample:false}); };
+  plateStack(-30,czf-1.4,10); plateStack(30,czf-1.4,10); plateStack(30,czf+1.2,8);
+  // 소스/드레싱 스테이션(우측 끝) = 리필존
+  addBox(6,5,6,lambert({color:0xdfe4e8}),36,2.5,czf);
+  [0xd7263d,0xF5C518,0x8a5ab9].forEach((cc,i)=>addCyl(0.7,3,lambert({color:cc}),34+i*2,6,czf,{rt:0.6,collide:false,sample:true}));
+  refillZones.push({x:36,z:czf,r:6,yMin:0,yMax:8,label:"소스 코너"});
+  // 이동식 서빙 카트(회색 3단, 이미지 1) — 좌측 통로
+  [3.2,1.8,0.4].forEach((sy,i)=>addBox(4,0.25,3,lambert({color:i===0?0x8a9096:0xb0b6ba}),-46,sy,-8,{collide:i===0,sample:false}));
+  [[-1.6,-1.2],[1.6,-1.2],[-1.6,1.2],[1.6,1.2]].forEach(([lx,lz])=>addCyl(0.15,3.4,lambert({color:0x6b7076}),-46+lx,1.7,-8+lz,{collide:false,sample:false}));
 
   // ── 배식대 좌측: 대형 은색 국솥 2개(주황 국물) + 국자 ──
   [[-40,-30],[-40,-20]].forEach(([px,pz])=>{
@@ -1370,8 +1404,12 @@ function buildCafeteria(){
     [[-9,-2],[9,-2],[-9,2],[9,2]].forEach(([lx,lz])=>addBox(0.7,3.2,0.7,tabLeg,tx+lx,1.6,tz+lz));
     [-3.4,3.4].forEach(sz=>{ addBox(20,0.5,1.6,lambert({color:0xd7a95a}),tx,1.6,tz+sz);      // 의자 좌석(등반 1.6)
       [[-9],[9]].forEach(([lx])=>addBox(0.6,1.6,0.6,tabLeg,tx+lx,0.8,tz+sz)); });
-    [0xE64545,0x4A7FB5,0xF5C518].forEach((cc,i)=>                        // 식판·컵 소품
-      addBox(2.2,0.3,1.6,lambert({color:cc}),tx-6+i*6,3.65,tz,{collide:false,sample:true}));
+    // 식탁 위 소품(이미지 3): 흰 접시 + 과일 그릇(사과) + 빵 + 청록 수저 바구니
+    addCyl(1.1,0.14,lambert({color:0xf4f4f4}),tx-6,3.55,tz,{rt:1.1,collide:false,sample:false});   // 접시
+    addCyl(0.9,0.5,lambert({color:0xdfe4e8}),tx+6,3.7,tz,{rt:0.9,collide:false,sample:false});     // 과일 그릇
+    [0x8ac33a,0xE64545,0x9bd83c].forEach((cc,i)=>addCyl(0.34,0.5,lambert({color:cc}),tx+6-0.4+i*0.4,4.0,tz,{rt:0.34,collide:false,sample:true})); // 사과
+    addBox(1.6,0.5,1.0,lambert({color:0xe8c98a}),tx,3.7,tz-1.4,{collide:false,sample:true});       // 빵
+    addBox(1.4,0.6,0.9,lambert({color:0x2ec4b6}),tx-2,3.75,tz+1.3,{collide:false,sample:true});    // 청록 수저 바구니
   }));
 
   // ── 뒤(+z): 식판 반납 컨베이어(길이 40) + 잔반통 + 수납대 + 손소독대 + 게시판 ──
