@@ -1133,7 +1133,8 @@ function buildScienceLab(){
     addCyl(0.24,1.5,lambert({color:0x9aa2a8}),x,1.0,z,{collide:false,sample:false});           // 승강 기둥
     const ring=new THREE.Mesh(new THREE.TorusGeometry(1.05,0.1,6,16),lambert({color:0x5b6168}));
     ring.position.set(x,0.85,z); ring.rotation.x=Math.PI/2; mapRoot.add(ring); samplables.push(ring); // 발받침 링
-    addCyl(1.15,0.5,lambert({color:cc}),x,1.95,z,{rt:1.15,sample:true});                        // 좌석 쿠션(장애물/등반)
+    addCyl(1.15,0.5,lambert({color:cc}),x,1.95,z,{rt:1.15,collide:false,sample:true});          // 좌석 쿠션
+    addAABBCollider(x,1.15,z,1.9,2.3,1.9);                                                       // 통짜 충돌(안으로 못 들어감)
   };
   const microscope=(x,z)=>{
     addBox(1.7,0.4,1.3,lambert({color:0x2b2f34}),x,3.45,z,{collide:false,sample:false});        // 받침
@@ -1253,9 +1254,10 @@ function buildScienceLab(){
   const mol=new THREE.Mesh(new THREE.PlaneGeometry(7,7),lambert({map:molTex}));
   mol.position.set(46,30,-ROOM_D/2+1.0); mapRoot.add(mol); samplables.push(mol);
   // 이동식 실험 카트(정적) — 이미지 3
-  addBox(5,0.3,3.5,lambert({color:0xdfe3e6}),32,3.2,34);
+  addBox(5,0.3,3.5,lambert({color:0xdfe3e6}),32,3.2,34,{collide:false,sample:false});
   addBox(5,0.3,3.5,lambert({color:0xdfe3e6}),32,1.6,34,{collide:false,sample:false});
   [[-2,-1.4],[2,-1.4],[-2,1.4],[2,1.4]].forEach(([lx,lz])=>addCyl(0.18,3.0,lambert({color:0x9aa2a8}),32+lx,1.6,34+lz,{collide:false,sample:false}));
+  addAABBCollider(32,1.7,34,5,3.4,3.5);                                                          // 카트 통짜 충돌
   [0x2f8fd6,0x9bd83c,0xff7eb0].forEach((cc,i)=>addCyl(0.4,1.2,lambert({color:cc}),30.5+i*1.5,3.9,34,{rt:0.3,collide:false,sample:true}));
 
   // ── 비상등(초록 발광, 앞뒤 벽) — 정전 중 방향감각 유지 ──
@@ -1373,8 +1375,9 @@ function buildCafeteria(){
   [0xd7263d,0xF5C518,0x8a5ab9].forEach((cc,i)=>addCyl(0.7,3,lambert({color:cc}),34+i*2,6,czf,{rt:0.6,collide:false,sample:true}));
   refillZones.push({x:36,z:czf,r:6,yMin:0,yMax:8,label:"소스 코너"});
   // 이동식 서빙 카트(회색 3단, 이미지 1) — 좌측 통로
-  [3.2,1.8,0.4].forEach((sy,i)=>addBox(4,0.25,3,lambert({color:i===0?0x8a9096:0xb0b6ba}),-46,sy,-8,{collide:i===0,sample:false}));
+  [3.2,1.8,0.4].forEach((sy,i)=>addBox(4,0.25,3,lambert({color:i===0?0x8a9096:0xb0b6ba}),-46,sy,-8,{collide:false,sample:false}));
   [[-1.6,-1.2],[1.6,-1.2],[-1.6,1.2],[1.6,1.2]].forEach(([lx,lz])=>addCyl(0.15,3.4,lambert({color:0x6b7076}),-46+lx,1.7,-8+lz,{collide:false,sample:false}));
+  addAABBCollider(-46,1.7,-8,4,3.4,3);                                                            // 카트 통짜 충돌
 
   // ── 배식대 좌측: 대형 은색 국솥 2개(주황 국물) + 국자 ──
   [[-40,-30],[-40,-20]].forEach(([px,pz])=>{
@@ -1438,10 +1441,10 @@ function buildCafeteria(){
     sp.scale.set(4,4,1); sp.position.set(c.x+(Math.random()-0.5)*2,5+i*1.4,c.z+(Math.random()-0.5)*2);
     sp.userData={base:5,rng:c.top-5,col:c}; mapRoot.add(sp); CAFE_STEAM_SPR.push(sp); } });
 
-  // 스폰: 술래 3곳(식탁 구역과 배식대 사이 큰 통로 z=-16) / 지우개 12곳
+  // 스폰: 술래 3곳(식탁 구역과 배식대 사이 통로 z=-16) / 지우개는 급식대 앞 넓은 공간(z≈-20~-32)
   seekerSpawns.push(new THREE.Vector3(-10,0,-16),new THREE.Vector3(0,0,-16),new THREE.Vector3(10,0,-16));
-  hiderSpawns=[[-16,0],[16,0],[-16,12],[16,12],[-16,24],[16,24],
-               [0,6],[0,18],[-40,-25],[48,-30],[-28,30],[34,28]]
+  hiderSpawns=[[0,-26],[-14,-24],[14,-24],[-24,-22],[24,-22],[0,-32],
+               [-8,-20],[8,-20],[-20,-30],[20,-30],[-30,-19],[30,-19]]
                .map(p=>new THREE.Vector3(p[0],0,p[1]));
 }
 /* 기믹 1) 미끄럼 존 — 관성 유지, 입력 방향 전환 둔화(술래·지우개 모두) */
@@ -1495,9 +1498,9 @@ function steamCleanup(){ Steam.dimmed.forEach(f=>setFairyOpacity(f,1)); Steam.di
    ================================================================ */
 let Carts=[];
 /* 세로 통로용 책장 한 줄(세그먼트 사이 빈 니치=숨기). 책등은 collide:false·sample:true */
-function fillSpines(faceX,cz,lenZ,height,seed,dir){
+function fillSpines(faceX,cz,lenZ,height,seed,dir,yStart=1.4){
   const rnd=mulberry32(seed);
-  for(let y=1.4;y<height-1;y+=2.0){
+  for(let y=yStart;y<height-1;y+=2.0){
     let z=cz-lenZ/2+0.5;
     while(z<cz+lenZ/2-0.6){
       const bw=0.55+rnd()*0.6, bh=1.5+rnd()*0.4;
@@ -1509,11 +1512,18 @@ function fillSpines(faceX,cz,lenZ,height,seed,dir){
 function buildBookRow(cx,height,seed,dir){
   const wood=lambert({color:0x6f4a2a});
   const segs=[[-30,-12],[-8,10],[14,30]];   // 사이 빈 니치(-12~-8, 10~14)
+  const cubbyH=2.7;   // 이 높이 아래는 비어 있는 '숨는 굴' — 지우개가 책장 안으로 들어가 숨습니다.
   segs.forEach((s,si)=>{
     const cz=(s[0]+s[1])/2, len=s[1]-s[0];
-    addBox(4,height,len,wood,cx,height/2,cz);           // 몸체(collider: 옆·뒤판까지 꽉 참)
-    fillSpines(cx+dir*2.05,cz,len,height,seed+si*11,dir);
-    fillSpines(cx-dir*2.05,cz,len,height,seed+si*11+5,-dir);
+    // 가운데 얇은 등판(전체 높이): 통로 사이 관통을 막고, 양쪽 굴의 뒷벽이 됩니다.
+    addBox(1.0,height,len,wood,cx,height/2,cz);
+    // 굴 높이 위쪽만 꽉 찬 책 몸체(충돌) — 아래는 열려서 몸을 숨길 수 있어요.
+    const upH=height-cubbyH;
+    addBox(3.8,upH,len,wood,cx,cubbyH+upH/2,cz);
+    addBox(4,0.3,len,lambert({color:0x8a5a33}),cx,cubbyH,cz,{collide:false,sample:false}); // 굴 천장(선반 밑판)
+    // 책은 굴 위쪽에만 (하단은 비움)
+    fillSpines(cx+dir*1.95,cz,len,height,seed+si*11,dir,cubbyH+0.3);
+    fillSpines(cx-dir*1.95,cz,len,height,seed+si*11+5,-dir,cubbyH+0.3);
   });
 }
 function buildLibrary(){
