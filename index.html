@@ -347,6 +347,11 @@ label.chk input{width:20px;height:20px;}
       <div class="row"><button id="btnJoin">입장하기</button></div>
     </div>
     <div class="row"><button id="btnPractice" class="secondary" style="font-size:14px;">🎨 혼자 연습 모드 (오프라인)</button></div>
+    <div id="practiceBox" class="hidden" style="margin-top:12px;">
+      <div class="note" style="margin-bottom:2px;">연습할 맵을 골라주세요</div>
+      <div id="practiceMapBox" class="mapCardBox"></div>
+      <div class="row" style="margin-top:10px;"><button id="btnPracticeStart" class="blue">▶ 이 맵으로 연습 시작</button></div>
+    </div>
     <div class="note" id="titleNote"></div>
   </div>
 </div>
@@ -4363,20 +4368,55 @@ function renderStats(stats){
   $("statsBody").innerHTML=html;
 }
 
-/* ── 연습 모드 (오프라인) ── */
+/* ── 연습 모드 (오프라인) — 혼자 연습도 맵을 골라서 시작할 수 있어요 ── */
+let practiceMapId="classroom";
+/* 연습용 맵 카드: 로비 카드와 달리 방장/온라인 여부와 무관하게 아무나 고를 수 있습니다. */
+function renderPracticeMapCards(){
+  const box=$("practiceMapBox"); if(!box)return;
+  box.innerHTML="";
+  Object.values(MAPS).forEach(m=>{
+    const ready=mapIsReady(m.id);
+    const card=document.createElement("div");
+    card.className="mapCard"+(practiceMapId===m.id?" sel":"")+(!ready?" disabled":"");
+    card.innerHTML=`<div class="ico">${m.icon}</div><div>${escapeHtml(m.name)}</div><div style="font-size:10px;opacity:.7;">${ready?"":"준비중"}</div>`;
+    if(ready){ card.onclick=()=>{Audio2.resume();practiceMapId=m.id;renderPracticeMapCards();}; }
+    box.appendChild(card);
+  });
+}
 $("btnPractice").onclick=()=>{
   Audio2.resume();
-  Net.mode="practice"; G.role="hider"; G.isHost=false; G.phase="PAINT";
-  G.pos.set(0,0,10); G.paint=1000; G.flying=false; G.flyUp=false; G.flyDown=false;
-  const g=myFairy.canvas.getContext("2d"); g.drawImage(makeEraserCanvas(),0,0); myFairy.tex.needsUpdate=true;
-  showScreen("GAME");
-  $("paintPanel").classList.remove("hidden");
-  $("phaseLabel").textContent="🎨 자유 연습";
-  showRoleCard("🧼 연습 모드","마음껏 칠하고 숨어보자! (E 또는 색칠 모드 버튼)");
-  Music.start("PAINT");
-  syncLocalFairy();
-  updateMobileButtons();
+  const box=$("practiceBox");
+  box.classList.toggle("hidden");
+  if(!box.classList.contains("hidden")) renderPracticeMapCards();
 };
+async function startOfflinePractice(){
+  Audio2.resume();
+  const btn=$("btnPracticeStart"); btn.disabled=true;
+  const prev=btn.textContent; btn.textContent="맵 준비 중...";
+  try{
+    // 고른 맵을 실제 씬으로 빌드합니다. (이미 그 맵이면 다시 짓지 않음)
+    if(currentMapId!==practiceMapId){
+      try{ await buildActiveMap(practiceMapId); }
+      catch(e){ console.warn("맵 준비 실패, 교실로 진행",e); }
+    }
+    Net.mode="practice"; G.role="hider"; G.isHost=false; G.phase="PAINT";
+    G.found=false; G.spectating=false; G.lobbyPractice=false; G.pose="stand"; G.vy=0;
+    // 고른 맵의 안전한 숨는 자리에서 시작합니다. (없으면 교실 기본 위치)
+    const sp=(hiderSpawns&&hiderSpawns.length)?hiderSpawns[0]:null;
+    if(sp) G.pos.set(sp.x,0,sp.z); else G.pos.set(0,0,10);
+    G.paint=1000; G.flying=false; G.flyUp=false; G.flyDown=false;
+    const g=myFairy.canvas.getContext("2d"); g.drawImage(makeEraserCanvas(),0,0); myFairy.tex.needsUpdate=true;
+    showScreen("GAME");
+    $("paintPanel").classList.remove("hidden");
+    const mapName=(MAPS[practiceMapId]&&MAPS[practiceMapId].name)||"교실";
+    $("phaseLabel").textContent="🎨 자유 연습 · "+mapName;
+    showRoleCard("🧼 연습 모드",`${mapName}에서 마음껏 칠하고 숨어보자! (E 또는 색칠 모드 버튼)`);
+    Music.start("PAINT");
+    syncLocalFairy();
+    updateMobileButtons();
+  }finally{ btn.disabled=false; btn.textContent=prev; }
+}
+$("btnPracticeStart").onclick=startOfflinePractice;
 
 /* URL ?room= 직접 입장 — 방 링크와 QR 모두 같은 경로를 사용합니다. */
 (function autoJoinFromRoomLink(){
