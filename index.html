@@ -1125,6 +1125,7 @@ function buildScienceLab(){
   addBox(22,0.6,6,lambert({color:0xe9e7e1}),-12,3.2,-ROOM_D/2+8);        // 대리석 상판
   [0xE64545,0xF5C518,0x3f9d5a,0x4A7FB5,0x8a5ab9,0xe07f3e].forEach((cc,i)=>
     addCyl(0.7,0.6,lambert({color:cc}),-20+i*3.2,3.7,-ROOM_D/2+8,{rt:0.7,collide:false}));
+  addAABBCollider(-12,4.0,-ROOM_D/2+8,20,1.6,3);                        // 시범대 시약통 구역 통짜 충돌
   refillZones.push({x:-12,z:-ROOM_D/2+9,r:6,yMin:0,yMax:6,label:"물감 트레이"});
 
   // ── 실험 도구 헬퍼: 바퀴 스툴 · 현미경 · 파란 용액 유리기구 · 인덕션 핫플레이트 ──
@@ -1165,6 +1166,7 @@ function buildScienceLab(){
     addCyl(0.18,0.9,lambert({color:0xF5C518}),bx-4.6,3.9,bz,{rt:0.18,collide:false}); // 가스콕
     addCyl(0.16,0.8,lambert({color:0xc7ccd2}),bx+4.6,3.9,bz,{rt:0.16,collide:false}); // 수도꼭지
     microscope(bx-2.5,bz-0.3); hotplate(bx+3,bz-0.3); glassSet(bx,bz+0.9,ri+(bx<0?0:2)); // 상판 도구
+    addAABBCollider(bx,4.7,bz,11,2.8,4);                                // 상판 도구 구역 통짜 충돌(위로 올라가 겹치기 방지)
     // 바퀴 스툴: 앞(-z) 2개 + 바깥쪽 1개 (중앙 통로 x=0은 비움)
     const outer=bx<0?bx-7.8:bx+7.8, seat=[0x5b6b7a,0x6b7280,0x4f6170];
     sciStool(bx-3,bz-3.9,seat[ri%3]); sciStool(bx+3,bz-3.9,seat[(ri+1)%3]); sciStool(outer,bz,seat[(ri+2)%3]);
@@ -1234,6 +1236,7 @@ function buildScienceLab(){
   addCyl(0.25,1.6,lambert({color:0x111316}),40,3.9,-ROOM_D/2+6,{collide:false,sample:false});             // 모니터 목
   addBox(4.5,3,0.4,lambert({color:0x1b1e22}),40,4.4,-ROOM_D/2+6,{collide:false,sample:false});            // 모니터
   addBox(4.2,2.6,0.25,lambert({color:0x2f8fd6}),40,4.4,-ROOM_D/2+5.78,{collide:false,sample:true});       // 화면
+  addAABBCollider(40,4.4,-ROOM_D/2+6,5,3,1.2);                                                            // 모니터 구역 충돌
   sciStool(40,-ROOM_D/2+11.5,0x2b2f34);                                                                   // 교사 의자
   // 노란 폐기물통(생물재해) — 이미지 3
   [[-20,-12],[20,12]].forEach(([x,z])=>{
@@ -1370,9 +1373,11 @@ function buildCafeteria(){
   // 접시탑(흰 접시 무더기, 이미지 1·5) — 배식대 양끝
   const plateStack=(x,z,n)=>{ for(let k=0;k<n;k++) addCyl(1.3,0.12,lambert({color:0xf4f4f4}),x,5.0+k*0.14,z,{rt:1.3,collide:false,sample:false}); };
   plateStack(-30,czf-1.4,10); plateStack(30,czf-1.4,10); plateStack(30,czf+1.2,8);
+  addAABBCollider(0,5.9,czf-0.3,62,2.6,4.6);                                                      // 배식 음식·접시 구역 통짜 충돌(위로 올라가 겹치기 방지)
   // 소스/드레싱 스테이션(우측 끝) = 리필존
   addBox(6,5,6,lambert({color:0xdfe4e8}),36,2.5,czf);
   [0xd7263d,0xF5C518,0x8a5ab9].forEach((cc,i)=>addCyl(0.7,3,lambert({color:cc}),34+i*2,6,czf,{rt:0.6,collide:false,sample:true}));
+  addAABBCollider(36,6,czf,6,4,4);                                                                // 소스통 구역 충돌
   refillZones.push({x:36,z:czf,r:6,yMin:0,yMax:8,label:"소스 코너"});
   // 이동식 서빙 카트(회색 3단, 이미지 1) — 좌측 통로
   [3.2,1.8,0.4].forEach((sy,i)=>addBox(4,0.25,3,lambert({color:i===0?0x8a9096:0xb0b6ba}),-46,sy,-8,{collide:false,sample:false}));
@@ -1413,6 +1418,7 @@ function buildCafeteria(){
     [0x8ac33a,0xE64545,0x9bd83c].forEach((cc,i)=>addCyl(0.34,0.5,lambert({color:cc}),tx+6-0.4+i*0.4,4.0,tz,{rt:0.34,collide:false,sample:true})); // 사과
     addBox(1.6,0.5,1.0,lambert({color:0xe8c98a}),tx,3.7,tz-1.4,{collide:false,sample:true});       // 빵
     addBox(1.4,0.6,0.9,lambert({color:0x2ec4b6}),tx-2,3.75,tz+1.3,{collide:false,sample:true});    // 청록 수저 바구니
+    addAABBCollider(tx,4.0,tz,15,1.7,3.4);                                                          // 식탁 위 소품 구역 통짜 충돌
   }));
 
   // ── 뒤(+z): 식판 반납 컨베이어(길이 40) + 잔반통 + 수납대 + 손소독대 + 게시판 ──
@@ -1552,6 +1558,7 @@ function buildLibrary(){
     [[-3.7,-2.4],[3.7,-2.4],[-3.7,2.4],[3.7,2.4]].forEach(([lx,lz])=>addBox(0.6,3,0.6,lambert({color:0x7a5230}),tx+lx,1.5,tz+lz));
     addCyl(0.2,2,lambert({color:0x3f9d5a}),tx,4.2,tz,{rt:0.2,collide:false});
     addCyl(1.1,1,lambert({color:0x2f8f4e}),tx,5.4,tz,{rt:0.6,collide:false,sample:true}); // 초록 갓 스탠드
+    addAABBCollider(tx,4.8,tz,2.6,3.6,2.6);                             // 스탠드 구역 충돌(위로 올라가 겹치기 방지)
     // 천장에서 내려오는 펜던트 조명(참고 이미지의 매달린 등)
     addCyl(0.05,WALL_H-11,cordMat,tx,(WALL_H+11)/2,tz,{collide:false,sample:false});        // 전선
     addCyl(1.5,2.4,lambert({color:0xf6efd8,emissive:0x2a2820,emissiveIntensity:0.3}),tx,11,tz,{rt:0.4,collide:false,sample:false}); // 갓
@@ -1564,10 +1571,12 @@ function buildLibrary(){
   addBox(18,4,4,lambert({color:0x8a5a33}),-30,2,-ROOM_D/2+5);
   addBox(4,4,14,lambert({color:0x8a5a33}),-38,2,-ROOM_D/2+12);
   addCyl(0.7,1.2,lambert({color:0x4A7FB5}),-30,4.6,-ROOM_D/2+5,{rt:0.7,collide:false,sample:true}); // 잉크병
+  addAABBCollider(-30,4.6,-ROOM_D/2+5,2,2,2);                          // 잉크병 구역 충돌
   refillZones.push({x:-30,z:-ROOM_D/2+5,r:6,yMin:0,yMax:6,label:"잉크병"});
   const disp=[0xE64545,0xF5C518,0x3f9d5a,0x4A7FB5,0x8a5ab9,0xe07f3e];
   disp.forEach((cc,i)=>addBox(2.2,3.2,0.6,lambert({color:cc}),10+i*3,3.6,-ROOM_D/2+3,{collide:false,sample:true})); // 신간 전시(표지)
   addBox(20,2,4,lambert({color:0x9a6b3f}),16,1,-ROOM_D/2+3);            // 전시대 몸체
+  addAABBCollider(17.5,3.6,-ROOM_D/2+3,20,3.4,1.4);                     // 신간 전시 표지 구역 충돌
 
   // ── 뒤(+z): 그림책 낮은 서가 + 독서왕 게시판 + 지구본 + 이동식 사다리 + 미술책(리필) ──
   for(let i=0;i<5;i++) addBox(9,6,4,lambert({color:0x7a5230}),-20+i*10,3,ROOM_D/2-4,{sample:true});
