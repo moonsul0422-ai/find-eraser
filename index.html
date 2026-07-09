@@ -1108,7 +1108,7 @@ function buildScienceLab(){
     for(let i=0;i<=8;i++){g.beginPath();g.moveTo(i*32,0);g.lineTo(i*32,h);g.stroke();
       g.beginPath();g.moveTo(0,i*32);g.lineTo(w,i*32);g.stroke();}
   },6,5);
-  buildRoomShell(lambert({map:floorTex}),0xcfe0e6,0xeef3f4,0x8fa0a8);
+  buildRoomShell(lambert({map:floorTex}),0xe6ebee,0xf4f7f8,0x9aa6ac);
 
   // ── 앞(-z): 칠판 + 주기율표 포스터 + 시범 실험대(리필: 물감 트레이) ──
   addBox(42,16,0.8,lambert({color:0x2E5E4E}),-12,12,-ROOM_D/2+0.6);
@@ -1127,16 +1127,46 @@ function buildScienceLab(){
     addCyl(0.7,0.6,lambert({color:cc}),-20+i*3.2,3.7,-ROOM_D/2+8,{rt:0.7,collide:false}));
   refillZones.push({x:-12,z:-ROOM_D/2+9,r:6,yMin:0,yMax:6,label:"물감 트레이"});
 
-  // ── 중앙: 학생 실험대 6개 (2열×3행 아일랜드형) ──
-  const benchTop=lambert({color:0x23262b}), benchBody=lambert({color:0x8a7a63});
-  [-15,15].forEach(bx=>[-24,0,24].forEach(bz=>{
-    addBox(12,0.7,5,benchTop,bx,3.05,bz);                               // 상판(등반 3.4)
+  // ── 실험 도구 헬퍼: 바퀴 스툴 · 현미경 · 파란 용액 유리기구 · 인덕션 핫플레이트 ──
+  const sciStool=(x,z,cc)=>{
+    addCyl(1.5,0.3,lambert({color:0x3a3f45}),x,0.25,z,{rt:1.5,collide:false,sample:false});   // 5발 베이스
+    addCyl(0.24,1.5,lambert({color:0x9aa2a8}),x,1.0,z,{collide:false,sample:false});           // 승강 기둥
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(1.05,0.1,6,16),lambert({color:0x5b6168}));
+    ring.position.set(x,0.85,z); ring.rotation.x=Math.PI/2; mapRoot.add(ring); samplables.push(ring); // 발받침 링
+    addCyl(1.15,0.5,lambert({color:cc}),x,1.95,z,{rt:1.15,sample:true});                        // 좌석 쿠션(장애물/등반)
+  };
+  const microscope=(x,z)=>{
+    addBox(1.7,0.4,1.3,lambert({color:0x2b2f34}),x,3.45,z,{collide:false,sample:false});        // 받침
+    addCyl(0.32,2.4,lambert({color:0x3a3f45}),x-0.25,4.7,z,{collide:false,sample:false});       // 암
+    addCyl(0.26,1.6,lambert({color:0x1b1e22}),x+0.35,4.9,z,{rz:0.45,collide:false,sample:false}); // 경통
+    addCyl(0.28,0.5,lambert({color:0x111316}),x+0.75,4.15,z,{collide:false,sample:false});      // 대물렌즈
+  };
+  const glassSet=(x,z,seed)=>{
+    const liq=[0x2f8fd6,0x3fb6a8,0x9bd83c,0xff7eb0,0xf5a623];
+    for(let i=0;i<3;i++){ const ox=(i-1)*0.95, cc=liq[(seed+i)%liq.length];
+      addCyl(0.42,1.6,lambert({color:0xd8eef7,transparent:true,opacity:0.45}),x+ox,4.2,z,{collide:false,sample:false}); // 유리
+      addCyl(0.4,0.7,lambert({color:cc}),x+ox,3.75,z,{rt:0.4,collide:false,sample:true});        // 파란/색색 용액
+    }
+  };
+  const hotplate=(x,z)=>{
+    addBox(2.2,0.7,1.8,lambert({color:0xe6e9ec}),x,3.75,z,{collide:false,sample:false});         // 몸체
+    addCyl(0.8,0.12,lambert({color:0x1b1e22}),x,4.16,z,{rt:0.8,collide:false,sample:false});      // 열판
+    addCyl(0.09,0.5,lambert({color:0xE64545}),x-0.85,4.1,z,{collide:false,sample:false});         // 다이얼
+  };
+
+  // ── 중앙: 학생 실험대 6개 (2열×3행 아일랜드형) — 흰 몸체·검정 상판, 도구 세팅 ──
+  const benchTop=lambert({color:0x23262b}), benchBody=lambert({color:0xeef1f3});
+  [-15,15].forEach(bx=>[-24,0,24].forEach((bz,ri)=>{
+    addBox(12,0.7,5,benchTop,bx,3.05,bz);                               // 검정 상판(등반 3.4)
     [[-5.2,-2],[5.2,-2],[-5.2,2],[5.2,2]].forEach(([lx,lz])=>
-      addBox(0.7,3,0.7,benchBody,bx+lx,1.5,bz+lz));                     // 다리(두께 0.7)
-    addBox(12,2.2,0.7,benchBody,bx,1.4,bz+2.15);                        // 뒤판(앞은 열림=숨기)
-    addCyl(0.18,0.9,lambert({color:0xF5C518}),bx-4,3.9,bz,{rt:0.18,collide:false}); // 가스콕
-    addCyl(0.16,0.8,lambert({color:0xc7ccd2}),bx+4,3.9,bz,{rt:0.16,collide:false}); // 수도꼭지
-    addBox(2.6,1.8,2.6,lambert({color:0x4A7FB5}),bx,0.9,bz-3.7);        // 의자(등반 1.8)
+      addBox(0.7,3,0.7,benchBody,bx+lx,1.5,bz+lz));                     // 다리
+    addBox(12,2.2,0.7,benchBody,bx,1.4,bz+2.15);                        // 흰 서랍장(앞은 열림=숨기)
+    addCyl(0.18,0.9,lambert({color:0xF5C518}),bx-4.6,3.9,bz,{rt:0.18,collide:false}); // 가스콕
+    addCyl(0.16,0.8,lambert({color:0xc7ccd2}),bx+4.6,3.9,bz,{rt:0.16,collide:false}); // 수도꼭지
+    microscope(bx-2.5,bz-0.3); hotplate(bx+3,bz-0.3); glassSet(bx,bz+0.9,ri+(bx<0?0:2)); // 상판 도구
+    // 바퀴 스툴: 앞(-z) 2개 + 바깥쪽 1개 (중앙 통로 x=0은 비움)
+    const outer=bx<0?bx-7.8:bx+7.8, seat=[0x5b6b7a,0x6b7280,0x4f6170];
+    sciStool(bx-3,bz-3.9,seat[ri%3]); sciStool(bx+3,bz-3.9,seat[(ri+1)%3]); sciStool(outer,bz,seat[(ri+2)%3]);
   }));
 
   // ── 좌측 벽: 약품장 5단 + 색색 시약병(16색, 맵 최고의 색 추출 존) ──
@@ -1182,6 +1212,51 @@ function buildScienceLab(){
   addBox(16,3,5,lambert({color:0xc7ccd2}),ROOM_W/2-11,1.5,ROOM_D/2-4);
   addBox(14,0.4,4,lambert({color:0x8fb3c4}),ROOM_W/2-11,3.05,ROOM_D/2-4,{collide:false,sample:true});
   refillZones.push({x:ROOM_W/2-11,z:ROOM_D/2-4,r:6.5,yMin:0,yMax:6,label:"물통"});
+
+  // ================================================================
+  // 참고 이미지 반영: 유리문 상부 벽장 · 시약 냉장고 · 교사 책상 · 폐기물통 · 구급함 · 분자 시계 · 이동 카트
+  // ================================================================
+  const glassDoor=lambert({color:0xbfe0ea,transparent:true,opacity:0.4});
+  // 유리문 상부 벽장(뒷벽 상단, 유리 안 실험기구) — 이미지 1·2
+  [-18,-2,14,30].forEach(cx=>{
+    addBox(14,10,3,lambert({color:0xf2f4f6}),cx,40,ROOM_D/2-2.5,{collide:false,sample:false});           // 장 몸체
+    addBox(13,9,0.3,glassDoor,cx,40,ROOM_D/2-4.1,{collide:false,sample:false});                          // 유리문
+    for(let i=0;i<4;i++) addCyl(0.5,2.2,lambert({color:RB16[(Math.abs(cx)+i)%16]}),cx-5+i*3.3,39,ROOM_D/2-4.4,{rt:0.35,collide:false,sample:true}); // 안쪽 기구
+  });
+  // 시약 냉장고(유리문 키큰장) — 이미지 3
+  addBox(6,16,6,lambert({color:0xdfe3e6}),6,8,ROOM_D/2-4);
+  addBox(5.4,13,0.3,glassDoor,6,9,ROOM_D/2-6.9,{collide:false,sample:false});
+  [3,7,11].forEach(sy=>{ addBox(5.2,0.3,5,lambert({color:0xeef1f3}),6,sy,ROOM_D/2-4,{collide:false,sample:false});
+    [0x2f8fd6,0x3fb6a8,0xff7eb0].forEach((cc,i)=>addCyl(0.45,1.6,lambert({color:cc}),4.2+i*1.8,sy+1,ROOM_D/2-6.1,{rt:0.32,collide:false,sample:true})); });
+  // 교사 책상 + 모니터 + 의자 (앞 우측 코너) — 이미지 3
+  addBox(10,3,5,lambert({color:0x3a3f45}),40,1.5,-ROOM_D/2+7);
+  addCyl(0.25,1.6,lambert({color:0x111316}),40,3.9,-ROOM_D/2+6,{collide:false,sample:false});             // 모니터 목
+  addBox(4.5,3,0.4,lambert({color:0x1b1e22}),40,4.4,-ROOM_D/2+6,{collide:false,sample:false});            // 모니터
+  addBox(4.2,2.6,0.25,lambert({color:0x2f8fd6}),40,4.4,-ROOM_D/2+5.78,{collide:false,sample:true});       // 화면
+  sciStool(40,-ROOM_D/2+11.5,0x2b2f34);                                                                   // 교사 의자
+  // 노란 폐기물통(생물재해) — 이미지 3
+  [[-20,-12],[20,12]].forEach(([x,z])=>{
+    addCyl(1.0,2.4,lambert({color:0xF5C518}),x,1.2,z,{rt:1.0,sample:true});
+    addBox(1.5,0.3,1.5,lambert({color:0x111316}),x,2.5,z,{collide:false,sample:false});                   // 뚜껑
+  });
+  // 구급함(빨간 십자) — 소화기 옆 뒷벽
+  addBox(3,3.4,1.2,lambert({color:0xf4f4f4}),-30,10,ROOM_D/2-3,{sample:true});
+  const crossTex=canvasTex(64,64,(g,w,h)=>{ g.fillStyle="#f4f4f4";g.fillRect(0,0,w,h);
+    g.fillStyle="#E64545";g.fillRect(26,12,12,40);g.fillRect(12,26,40,12); });
+  const cross=new THREE.Mesh(new THREE.PlaneGeometry(2.6,2.6),lambert({map:crossTex}));
+  cross.position.set(-30,10,ROOM_D/2-3.7); cross.rotation.y=Math.PI; mapRoot.add(cross); samplables.push(cross);
+  // 분자구조 벽시계(육각 고리) — 앞벽 우측 (이미지 3)
+  const molTex=canvasTex(128,128,(g,w,h)=>{ g.fillStyle="#eef3f4";g.beginPath();g.arc(64,64,60,0,7);g.fill();
+    g.strokeStyle="#E64545";g.lineWidth=6;g.beginPath();
+    for(let i=0;i<=6;i++){const a=i/6*Math.PI*2,px=64+34*Math.cos(a),py=64+34*Math.sin(a);i?g.lineTo(px,py):g.moveTo(px,py);} g.stroke();
+    g.strokeStyle="#2b2b2b";g.lineWidth=4;g.beginPath();g.moveTo(64,64);g.lineTo(64,32);g.moveTo(64,64);g.lineTo(86,64);g.stroke(); });
+  const mol=new THREE.Mesh(new THREE.PlaneGeometry(7,7),lambert({map:molTex}));
+  mol.position.set(46,30,-ROOM_D/2+1.0); mapRoot.add(mol); samplables.push(mol);
+  // 이동식 실험 카트(정적) — 이미지 3
+  addBox(5,0.3,3.5,lambert({color:0xdfe3e6}),32,3.2,34);
+  addBox(5,0.3,3.5,lambert({color:0xdfe3e6}),32,1.6,34,{collide:false,sample:false});
+  [[-2,-1.4],[2,-1.4],[-2,1.4],[2,1.4]].forEach(([lx,lz])=>addCyl(0.18,3.0,lambert({color:0x9aa2a8}),32+lx,1.6,34+lz,{collide:false,sample:false}));
+  [0x2f8fd6,0x9bd83c,0xff7eb0].forEach((cc,i)=>addCyl(0.4,1.2,lambert({color:cc}),30.5+i*1.5,3.9,34,{rt:0.3,collide:false,sample:true}));
 
   // ── 비상등(초록 발광, 앞뒤 벽) — 정전 중 방향감각 유지 ──
   const exitMat=lambert({color:0x37d67a,emissive:0x2fbf6a,emissiveIntensity:1.0});
