@@ -1513,23 +1513,35 @@ function beltPathPos(d,b){
   if(d<Lx) return {x:b.xR-d, z:b.zFar, dx:-1, dz:0};   d-=Lx;
   return {x:b.xL, z:b.zFar-d, dx:0, dz:-1};
 }
-/* 기믹 2) 순환 컨베이어 — 식판이 루프를 계속 돌고, 벨트 위 플레이어는 그 변의 방향으로 실려 감 */
+/* 플레이어 위치를 사각 루프 경로에 투영 → 둘레거리 d와 경로선까지 거리 반환 */
+function beltProject(px,pz,b){
+  const Lx=b.xR-b.xL, Lz=b.zFar-b.zNear;
+  const cx=clamp(px,b.xL,b.xR), cz=clamp(pz,b.zNear,b.zFar);
+  const edges=[
+    {ex:cx,  ez:b.zNear, d:(cx-b.xL)},          // 앞 변 A→B (+x)
+    {ex:b.xR,ez:cz,      d:Lx+(cz-b.zNear)},     // 우 변 B→C (+z)
+    {ex:cx,  ez:b.zFar,  d:Lx+Lz+(b.xR-cx)},     // 뒤 변 C→D (-x)
+    {ex:b.xL,ez:cz,      d:2*Lx+Lz+(b.zFar-cz)}, // 좌 변 D→A (-z)
+  ];
+  let best=edges[0], bd=Infinity;
+  for(const e of edges){ const ddx=px-e.ex, ddz=pz-e.ez, dist=ddx*ddx+ddz*ddz; if(dist<bd){bd=dist;best=e;} }
+  return {d:best.d, dist:Math.sqrt(bd)};
+}
+/* 기믹 2) 순환 컨베이어 — 식판이 루프를 계속 돌고, 벨트 위 플레이어도 루프를 따라 코너까지 계속 실려 감 */
 function updateConveyor(dt){
   if(!CAFE_BELT)return;
   const b=CAFE_BELT, t=(Net.now?Net.now():Date.now())/1000;
   // 식판 순환(항상)
   CAFE_TRAYS.forEach(tr=>{ const p=beltPathPos(b.speed*t+tr.d0,b);
     tr.mesh.position.set(p.x,b.top+0.35,p.z); tr.mesh.rotation.y=(p.dz!==0)?Math.PI/2:0; });
-  // 플레이어 캐리
+  // 플레이어 캐리 — 경로에 투영해 접선 방향으로 이동시켜 코너에서도 돌아감
   if(G.screen!=="GAME"||G.role==="ghost"||G.spectating)return;
-  if(Math.abs(G.pos.y-b.top)>0.6)return;
-  const hw=b.w/2+0.3; let dx=0,dz=0;
-  if(Math.abs(G.pos.z-b.zNear)<hw && G.pos.x>b.xL-hw && G.pos.x<b.xR+hw) dx=1;
-  else if(Math.abs(G.pos.z-b.zFar)<hw && G.pos.x>b.xL-hw && G.pos.x<b.xR+hw) dx=-1;
-  else if(Math.abs(G.pos.x-b.xR)<hw && G.pos.z>b.zNear-hw && G.pos.z<b.zFar+hw) dz=1;
-  else if(Math.abs(G.pos.x-b.xL)<hw && G.pos.z>b.zNear-hw && G.pos.z<b.zFar+hw) dz=-1;
-  if(dx)moveHorizontalAxis("x",dx*b.speed*dt);
-  if(dz)moveHorizontalAxis("z",dz*b.speed*dt);
+  if(Math.abs(G.pos.y-b.top)>0.6)return;               // 벨트 위에 서 있을 때만
+  const pr=beltProject(G.pos.x,G.pos.z,b);
+  if(pr.dist>b.w/2+0.7)return;                          // 벨트 밴드 위가 아니면 제외
+  const p0=beltPathPos(pr.d,b), p1=beltPathPos(pr.d+b.speed*dt,b);
+  moveHorizontalAxis("x",p1.x-p0.x);
+  moveHorizontalAxis("z",p1.z-p0.z);
 }
 /* 기믹 3) 김 모락모락 — 기둥 안 캐릭터(본인·원격)를 흐릿하게 + 증기 상승 */
 const Steam={dimmed:new Set()};
