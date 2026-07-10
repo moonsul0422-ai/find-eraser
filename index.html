@@ -147,6 +147,11 @@ label.chk input{width:20px;height:20px;}
   font-size:clamp(48px,14vw,120px);color:#bff0ff;text-shadow:0 0 20px #4ab8ff,4px 4px 0 rgba(0,0,0,.5);
   pointer-events:none;animation:frozenPulse 1.2s ease-in-out infinite;}
 #frozenBanner.hidden{display:none;}
+#centerAlert{position:fixed;top:38%;left:50%;transform:translate(-50%,-50%);z-index:58;
+  font-size:clamp(38px,10vw,90px);font-weight:900;color:#ffe27a;text-align:center;white-space:nowrap;
+  text-shadow:0 0 26px #ff8a00,4px 4px 0 rgba(0,0,0,.55);
+  pointer-events:none;animation:frozenPulse 0.55s ease-in-out infinite;}
+#centerAlert.hidden{display:none;}
 @keyframes frozenPulse{0%,100%{transform:translate(-50%,-50%) scale(1);}50%{transform:translate(-50%,-50%) scale(1.08);}}
 
 /* ===== v2: 기록 모달 ===== */
@@ -193,7 +198,7 @@ label.chk input{width:20px;height:20px;}
 #btnSpectate.on{background:var(--yellow);}
 #btnShowQR{position:absolute;top:40px;right:12px;left:auto;pointer-events:auto;
   font-size:13px;padding:8px 12px;border-radius:12px;background:rgba(255,248,231,.94);
-  z-index:41;white-space:normal;line-height:1.25;}
+  z-index:55;white-space:normal;line-height:1.25;}
 #roleCard{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:60;pointer-events:none;}
 #roleCard .card{background:var(--cream);border:5px solid var(--ink);border-radius:20px;padding:26px 40px;
   font-size:clamp(22px,5vw,34px);box-shadow:8px 8px 0 rgba(0,0,0,.4);transform:scale(.6);opacity:0;
@@ -362,7 +367,6 @@ label.chk input{width:20px;height:20px;}
     <h2>📌 우리 반 게임 방</h2>
     <div class="roomCodeTools">
       <div id="roomCodeBig">0000</div>
-      <button id="btnCopyRoomCode" class="secondary">코드 복사</button>
     </div>
     <div id="qrWrap" title="QR을 클릭하면 크게 볼 수 있어요"></div>
     <div class="note">QR이나 링크를 열면 이 방으로 바로 연결됩니다. QR은 클릭하면 크게 볼 수 있어요.</div>
@@ -533,6 +537,7 @@ label.chk input{width:20px;height:20px;}
 
 <!-- v2: 학생 "얼음!" 배너 -->
 <div id="frozenBanner" class="hidden">🧊 얼음!</div>
+<div id="centerAlert" class="hidden">⚡ 곧 정전!</div>
 
 <div id="paintPanel" class="hidden">
   <button id="panelToggle">🎨 물감 접기</button>
@@ -1284,6 +1289,7 @@ function sciCleanup(){
   if(scene.fog){scene.fog=null;}
   if(Sci.spot)Sci.spot.visible=false;
   Sci.blackout=false; Sci.warnedCycle=-1; Sci.localStart=0;
+  const ca=document.getElementById("centerAlert"); if(ca)ca.classList.add("hidden");
 }
 function updateScienceLabGimmick(dt){
   if(!Sci.spot){
@@ -1298,21 +1304,27 @@ function updateScienceLabGimmick(dt){
       seekStart=G.phaseEndsAt-ss*1000;                 // 이미 동기화된 값에서 역산
     }else{ if(!Sci.localStart)Sci.localStart=Net.now(); seekStart=Sci.localStart; }
   }else{ Sci.localStart=0; }
+  // 사이클 60초: 앞 30초 점등 → 뒤 30초 정전(재미요소, 길고 어둡게)
+  const CYCLE=60, LIGHT=30;
   const elapsed=inSeek?Math.max(0,(Net.now()-seekStart)/1000):0;
-  const cyc=elapsed%40, cycleId=Math.floor(elapsed/40);
-  const blackout=inSeek&&cyc<12;
-  const preWarn=inSeek&&cyc>=37;                        // 발생 3초 전
-  if(preWarn&&Sci.warnedCycle!==cycleId){ Sci.warnedCycle=cycleId; toast("⚡ 곧 정전!"); }
+  const cyc=elapsed%CYCLE, cycleId=Math.floor(elapsed/CYCLE);
+  const blackout=inSeek&&cyc>=LIGHT;                    // 뒤 30초 정전
+  const preWarn=inSeek&&cyc>=LIGHT-3&&cyc<LIGHT;        // 정전 3초 전 경고
   if(blackout&&!Sci.blackout)Sci.blackout=true;
   if(!blackout&&Sci.blackout){ Sci.blackout=false; toast("💡 전원 복구!"); }
-  // 밝기 lerp(약 1.5초) — 완전 암전이 아니라 실루엣이 보이는 어둑함
-  const tA=blackout?AMB_BASE*0.15:AMB_BASE, tS=blackout?SUN_BASE*0.15:SUN_BASE;
+  // 가운데 큰 알람: 곧 정전(경고) / 정전 순간
+  const ca=$("centerAlert");
+  if(preWarn){ ca.textContent="⚡ 곧 정전!"; ca.classList.remove("hidden"); }
+  else if(blackout&&cyc<LIGHT+2.6){ ca.textContent="🔦 정전!"; ca.classList.remove("hidden"); }
+  else ca.classList.add("hidden");
+  // 밝기 lerp(약 1.5초) — 정전 때 더 어둡게
+  const tA=blackout?AMB_BASE*0.08:AMB_BASE, tS=blackout?SUN_BASE*0.08:SUN_BASE;
   const k=Math.min(1,dt/1.5);
   ambientLight.intensity+=(tA-ambientLight.intensity)*k;
   sun.intensity+=(tS-sun.intensity)*k;
   if(preWarn){ const bl=Math.sin(elapsed*20)>0?1:0.45; ambientLight.intensity=AMB_BASE*(0.55+0.45*bl); } // 2회 깜빡
-  // 안개
-  if(blackout){ if(!scene.fog)scene.fog=new THREE.Fog(0x0a0e14,18,95); }
+  // 안개(더 짙게)
+  if(blackout){ if(!scene.fog)scene.fog=new THREE.Fog(0x080b10,12,72); }
   else if(scene.fog){ scene.fog.far+=260*dt; if(scene.fog.far>420)scene.fog=null; }
   // 술래 손전등(시점 방향을 따라감)
   if(blackout&&G.role==="seeker"){
@@ -1533,35 +1545,40 @@ function steamCleanup(){ Steam.dimmed.forEach(f=>setFairyOpacity(f,1)); Steam.di
    📚 맵 3. 도서관 — buildLibrary + updateBookCarts(움직이는 책수레 2대)
    ================================================================ */
 let Carts=[];
-/* 세로 통로용 책장 한 줄(세그먼트 사이 빈 니치=숨기). 책등은 collide:false·sample:true */
-function fillSpines(faceX,cz,lenZ,height,seed,dir,yStart=1.4){
+/* 선반 한 칸에 책을 한 줄 세움 — 책은 바깥면보다 안쪽(faceX)에 꽂혀 튀어나오지 않음 */
+function fillShelfBooks(faceX,cz,lenZ,y,seed){
   const rnd=mulberry32(seed);
-  for(let y=yStart;y<height-1;y+=2.0){
-    let z=cz-lenZ/2+0.5;
-    while(z<cz+lenZ/2-0.6){
-      const bw=0.55+rnd()*0.6, bh=1.5+rnd()*0.4;
-      // 약 30%는 빈 칸으로 남겨 책 사이사이 틈을 만듭니다(비운 느낌 + 숨을 공간).
-      if(rnd()>0.30)
-        addBox(0.5,bh,bw,lambert({color:LIB_PAL[(rnd()*LIB_PAL.length)|0]}),faceX,y+bh/2,z+bw/2,{collide:false,sample:true});
-      z+=bw+0.05;
-    }
+  let z=cz-lenZ/2+0.4;
+  while(z<cz+lenZ/2-0.5){
+    const bw=0.5+rnd()*0.5, bh=1.2+rnd()*0.5;
+    // 약 26%는 빈 칸 → 사이사이 틈 + 안쪽 벽이 보여 움푹 들어간 느낌
+    if(rnd()>0.26)
+      addBox(0.5,bh,bw,lambert({color:LIB_PAL[(rnd()*LIB_PAL.length)|0]}),faceX,y+bh/2,z+bw/2,{collide:false,sample:true});
+    z+=bw+0.06;
   }
 }
+/* 양쪽 책장 한 줄: 가운데 벽(뒷판) + 양옆 움푹 들어간 칸(선반·측판) + 안쪽에 꽂힌 책.
+   굴 높이 아래는 비워 지우개가 들어가 숨음. 책은 프레임 바깥으로 튀어나오지 않음. */
 function buildBookRow(cx,height,seed,dir){
-  const wood=lambert({color:0x6f4a2a});
-  const segs=[[-30,-15],[-7,7],[15,30]];   // 세그먼트 사이 큰 니치(-15~-7, 7~15)로 숨을 틈을 넓힘
-  const cubbyH=3.3;   // 하단 빈 '숨는 굴'을 더 높여 지우개가 편히 들어가 숨습니다.
+  const back=lambert({color:0x5a3f26}), wood=lambert({color:0x6f4a2a}), shelfMat=lambert({color:0x7a5230});
+  const segs=[[-30,-15],[-7,7],[15,30]];   // 세그먼트 사이 니치(숨을 틈)
+  const cubbyH=3.3, half=2.0, sw=1.3;      // half=서가 반너비(바깥면), sw=선반 깊이
   segs.forEach((s,si)=>{
     const cz=(s[0]+s[1])/2, len=s[1]-s[0];
-    // 가운데 얇은 등판(전체 높이): 통로 사이 관통만 막고, 양쪽 굴의 뒷벽이 됩니다.
-    addBox(0.8,height,len,wood,cx,height/2,cz);
-    // 굴 높이 위쪽만 꽉 찬 책 몸체(충돌) — 아래는 열려서 몸을 숨길 수 있어요.
-    const upH=height-cubbyH;
-    addBox(3.6,upH,len,wood,cx,cubbyH+upH/2,cz);
-    addBox(4,0.3,len,lambert({color:0x8a5a33}),cx,cubbyH,cz,{collide:false,sample:false}); // 굴 천장(선반 밑판)
-    // 책은 굴 위쪽에만 (하단은 비움, 윗칸도 군데군데 비움)
-    fillSpines(cx+dir*1.85,cz,len,height,seed+si*11,dir,cubbyH+0.3);
-    fillSpines(cx-dir*1.85,cz,len,height,seed+si*11+5,-dir,cubbyH+0.3);
+    addBox(1.4,height,len,back,cx,height/2,cz);                                   // 가운데 벽(충돌 + 양쪽 칸 뒷판)
+    addAABBCollider(cx,cubbyH+(height-cubbyH)/2,cz,half*2,height-cubbyH,len);     // 굴 위 통짜 충돌(관통 방지, 보이지 않음)
+    [1,-1].forEach(sd=>{
+      const scx=cx+sd*1.35;                                                       // 칸(선반) 중심 x
+      // 세로 측판(세그먼트 양끝) — 바깥면 ±2.0까지, 프레임
+      [cz-len/2+0.18,cz+len/2-0.18].forEach(ez=>
+        addBox(sw,height-cubbyH,0.34,wood,scx,cubbyH+(height-cubbyH)/2,ez,{collide:false,sample:false}));
+      // 가로 선반판 + 그 위에 안쪽으로 꽂힌 책
+      for(let sy=cubbyH;sy<height-0.5;sy+=2.1){
+        addBox(sw,0.22,len,shelfMat,scx,sy,cz,{collide:false,sample:false});       // 선반판(바깥면까지)
+        if(sy+2.1<height) fillShelfBooks(cx+sd*1.42,cz,len,sy+0.14,seed+si*30+((sy*4)|0)+(sd>0?0:7)); // 책(바깥면 2.0보다 안쪽)
+      }
+      addBox(sw,0.22,len,wood,scx,height-0.2,cz,{collide:false,sample:false});     // 천장판
+    });
   });
 }
 function buildLibrary(){
@@ -3378,7 +3395,7 @@ const Net={
       delete this.players[s.key];delete this.presence[s.key];removeRemote(s.key);onPlayersChange(s.key,"remove");
       if(s.key===this.uid&&!G.isHost){
         Music.stop();
-        alert("선생님이 게임방에서 내보냈어요.");
+        alert("연결이 끊겼습니다. 다시 입장해 주세요.");
         location.href=location.pathname;
         return;
       }
@@ -4341,7 +4358,6 @@ function enterLobby(){
       $("qrWrap").appendChild(cv);
     }catch(e){ console.warn("QR 생성 실패",e); }
   }
-  $("btnCopyRoomCode").onclick=()=>copyTextSafe(G.code);
   $("btnCopyRoomLink").onclick=()=>copyTextSafe(currentRoomUrl);
 }
 $("btnChangeNick").onclick=async()=>{
