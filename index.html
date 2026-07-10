@@ -516,6 +516,7 @@ label.chk input{width:20px;height:20px;}
     <div class="tpRow"><button id="btnEndSeekNow">🔍 찾는 시간 즉시 종료</button></div>
     <div class="tpRow"><button id="btnForceEndRound">⏹ 라운드 강제 종료</button></div>
     <div class="tpRow"><button id="btnFreeze">🧊 얼음! (움직임 멈춤)</button></div>
+    <div class="tpRow"><button id="btnBlackout" class="hidden">⚡ 정전 기믹 켜짐 (끄기)</button></div>
     <div class="tpRow"><button id="btnToggleTV">📺 TV 전체 조망</button></div>
   </div>
 </div>
@@ -1317,11 +1318,13 @@ function updateScienceLabGimmick(dt){
     }else{ if(!Sci.localStart)Sci.localStart=Net.now(); seekStart=Sci.localStart; }
   }else{ Sci.localStart=0; }
   // 사이클 60초: 앞 30초 점등 → 뒤 30초 정전(재미요소, 길고 어둡게)
+  // v3: 선생님이 패널에서 정전 기믹을 끌 수 있음 (meta.settings.blackout==="off")
   const CYCLE=60, LIGHT=30;
+  const gimmickOn=(Net.mode!=="online")||(((Net.meta&&Net.meta.settings)||{}).blackout!=="off");
   const elapsed=inSeek?Math.max(0,(Net.now()-seekStart)/1000):0;
   const cyc=elapsed%CYCLE, cycleId=Math.floor(elapsed/CYCLE);
-  const blackout=inSeek&&cyc>=LIGHT;                    // 뒤 30초 정전
-  const preWarn=inSeek&&cyc>=LIGHT-3&&cyc<LIGHT;        // 정전 3초 전 경고
+  const blackout=gimmickOn&&inSeek&&cyc>=LIGHT;                    // 뒤 30초 정전
+  const preWarn=gimmickOn&&inSeek&&cyc>=LIGHT-3&&cyc<LIGHT;        // 정전 3초 전 경고
   if(blackout&&!Sci.blackout)Sci.blackout=true;
   if(!blackout&&Sci.blackout){ Sci.blackout=false; toast("💡 전원 복구!"); }
   // 가운데 큰 알람: 곧 정전(경고) / 정전 순간
@@ -1329,8 +1332,8 @@ function updateScienceLabGimmick(dt){
   if(preWarn){ ca.textContent="⚡ 곧 정전!"; ca.classList.remove("hidden"); }
   else if(blackout&&cyc<LIGHT+2.6){ ca.textContent="🔦 정전!"; ca.classList.remove("hidden"); }
   else ca.classList.add("hidden");
-  // 밝기 lerp(약 1.5초) — 정전 때 더 어둡게
-  const tA=blackout?AMB_BASE*0.08:AMB_BASE, tS=blackout?SUN_BASE*0.08:SUN_BASE;
+  // 밝기 lerp(약 1.5초) — 정전 때 어둡게 (기본값 살짝 완화: 0.08→0.12)
+  const tA=blackout?AMB_BASE*0.12:AMB_BASE, tS=blackout?SUN_BASE*0.12:SUN_BASE;
   const k=Math.min(1,dt/1.5);
   ambientLight.intensity+=(tA-ambientLight.intensity)*k;
   sun.intensity+=(tS-sun.intensity)*k;
@@ -3355,7 +3358,7 @@ const Net={
       const s=await get(ref(this.db,`rooms/${code}/meta`));
       if(!s.exists())break;
     }
-    this.code=code; G.code=code; G.isHost=true;
+    this.code=code; G.code=code; G.isHost=true; this._kicked=false;
     await set(ref(this.db,`rooms/${code}/meta`),{host:this.uid,phase:"LOBBY",phaseEndsAt:0,round:0,
       settings:{paintSec:60,seekSec:180},hostRole:"spectator",manualSeekers:null,mapId:"classroom"});
     await set(ref(this.db,`rooms/${code}/players/${this.uid}`),
@@ -3383,6 +3386,8 @@ const Net={
     this.meta=metaS.val()||{};
     if(plS.exists())this.players=Object.assign({},plS.val());
     const myRole=rejoin?rejoin.role:"hider";
+    this._kicked=false;
+    set(ref(this.db,`rooms/${code}/kicks/${this.uid}`),null).catch(()=>{}); // 정식 재입장이면 이전 강퇴 기록 해제
     await set(ref(this.db,`rooms/${code}/players/${this.uid}`),
       {nick,role:myRole,found:rejoin?!!rejoin.found:false,lastSeen:serverTimestamp()});
     this.players[this.uid]={nick,role:myRole,found:rejoin?!!rejoin.found:false};
@@ -3407,7 +3412,9 @@ const Net={
       if(m.phase!==prev) onPhaseChange(m.phase,prev);
     });
     const pref=ref(this.db,`rooms/${this.code}/players`);
-    onChildAdded(pref,s=>{ this.players[s.key]=s.val(); onPlayersChange(s.key,"add"); });
+    onChildAdded(pref,s=>{ this.players[s.key]=s.val(); onPlayersChange(s.key,"add");
+      if(s.key===this.meta.host) onHostBack();          // 선생님이 유예 시간 안에 돌아옴
+    });
     onChildChanged(pref,s=>{
       const before=this.players[s.key]||{}; const after=s.val();
       this.players[s.key]=after;
@@ -3419,12 +3426,19 @@ const Net={
       const wasHost=(this.meta.host===s.key);
       delete this.players[s.key];delete this.presence[s.key];removeRemote(s.key);onPlayersChange(s.key,"remove");
       if(s.key===this.uid&&!G.isHost){
-        Music.stop();
-        alert("연결이 끊겼습니다. 다시 입장해 주세요.");
-        location.href=location.pathname;
+        // 강퇴가 아닌데 내 노드가 지워짐(이전 onDisconnect 잔재·일시 끊김) → 조용히 복구하고 계속
+        if(!this._kicked) this.selfHeal("node-removed");
         return;
       }
       if(wasHost&&s.key!==this.uid)onHostLost();
+    });
+    // '진짜 강퇴' 신호: 선생님이 내보낸 경우에만 이 플래그가 켜집니다.
+    onValue(ref(this.db,`rooms/${this.code}/kicks/${this.uid}`),s=>{
+      if(!s.val()||G.isHost)return;
+      this._kicked=true;
+      Music.stop();
+      alert("선생님이 게임방에서 내보냈어요.");
+      location.href=location.pathname;
     });
     const presenceRef=ref(this.db,`rooms/${this.code}/presence`);
     onChildAdded(presenceRef,s=>{this.presence[s.key]=s.val();refreshLobbyGrid();});
@@ -3512,6 +3526,7 @@ const Net={
     if(!confirm(`${p.nick||"이 참가자"}님을 게임방에서 내보낼까요?`))return false;
     try{
       const patch={};
+      patch[`rooms/${this.code}/kicks/${uid}`]=true;   // '진짜 강퇴'는 이 플래그로만 판정 (일시적 끊김과 구분)
       patch[`rooms/${this.code}/players/${uid}`]=null;
       patch[`rooms/${this.code}/presence/${uid}`]=null;
       patch[`rooms/${this.code}/pos/${uid}`]=null;
@@ -3519,6 +3534,47 @@ const Net={
       toast(`${p.nick||"참가자"}님을 내보냈어요.`);
       return true;
     }catch(err){console.error("강퇴 실패",err);toast("강퇴하지 못했어요");return false;}
+  },
+  /* ── v3: 재접속 안정화 ──
+     일시적 끊김(이전 onDisconnect 잔재·절전 등)으로 내 노드가 지워졌을 때
+     쫓아내지 않고 로컬 상태로 노드를 다시 써서 조용히 게임을 이어갑니다. */
+  selfHeal(reason){
+    if(this.mode!=="online"||!this.code||!this.fb||this._kicked)return;
+    const {ref,set,serverTimestamp,onDisconnect}=this.fb;
+    const cur=this.players[this.uid]||{};
+    const me={nick:this.nick||G.nick||cur.nick||"?",role:cur.role||G.role||"hider",
+              found:cur.found??G.found??false,lastSeen:serverTimestamp()};
+    const meRef=ref(this.db,`rooms/${this.code}/players/${this.uid}`);
+    const pRef=ref(this.db,`rooms/${this.code}/presence/${this.uid}`);
+    const posRef=ref(this.db,`rooms/${this.code}/pos/${this.uid}`);
+    set(meRef,me).catch(()=>{});
+    set(pRef,{online:true,lastSeen:serverTimestamp()}).catch(()=>{});
+    onDisconnect(meRef).remove();onDisconnect(pRef).remove();onDisconnect(posRef).remove();
+    this.players[this.uid]=Object.assign({},cur,{nick:me.nick,role:me.role,found:me.found});
+    G.lastPosSent="";                       // 위치 즉시 재전송 유도
+    console.info("[net] self-heal:",reason);
+  },
+  /* 절전/앱전환 복귀·네트워크 복구 시 1회 강제 재동기화 */
+  async resync(){
+    if(this.mode!=="online"||!this.code||!this.fb)return;
+    try{
+      const {ref,get,update,serverTimestamp}=this.fb;
+      const stamp=serverTimestamp();
+      update(ref(this.db,`rooms/${this.code}`),{
+        [`players/${this.uid}/lastSeen`]:stamp,
+        [`presence/${this.uid}/online`]:true,[`presence/${this.uid}/lastSeen`]:stamp
+      }).catch(()=>{});
+      const [metaS,meS]=await Promise.all([
+        get(ref(this.db,`rooms/${this.code}/meta`)),
+        get(ref(this.db,`rooms/${this.code}/players/${this.uid}`))
+      ]);
+      if(metaS.exists()){
+        const m=metaS.val(); const prev=this.meta.phase;
+        this.meta=m; G.phaseEndsAt=m.phaseEndsAt||0;
+        if(m.phase!==prev) onPhaseChange(m.phase,prev);   // 자는 동안 넘어간 페이즈 따라잡기
+      }
+      if(!meS.exists()) this.selfHeal("resync");
+    }catch(e){ console.warn("재동기화 실패",e); }
   },
   async tagFound(uid,point){
     if(this.mode!=="online")return false;
@@ -4033,11 +4089,24 @@ function onSomeoneFound(uid,p){
   refreshIconRow();
 }
 function onPlayersChange(){ refreshLobbyGrid(); refreshIconRow(); }
+/* v3: 선생님(호스트) 노드가 잠깐 사라져도 반 전체를 튕기지 않습니다.
+   15초 유예 동안 학생은 계속 플레이하고(게임 상태는 서버에 있음),
+   그 안에 선생님이 돌아오면 아무 일 없던 것처럼 이어갑니다. */
+let hostLostTimer=null;
 function onHostLost(){
-  toast("선생님 연결이 끊어졌어요");
-  Music.stop();
-  alert("선생님과의 연결이 끊어졌어요. 로비로 돌아갑니다.");
-  location.reload();
+  if(hostLostTimer)return;
+  toast("👩‍🏫 선생님 연결이 잠시 끊겼어요. 게임은 계속돼요!");
+  hostLostTimer=setTimeout(()=>{
+    hostLostTimer=null;
+    Music.stop();
+    alert("선생님과의 연결이 끊어졌어요. 처음 화면으로 돌아갑니다.");
+    location.href=location.pathname;
+  },15000);
+}
+function onHostBack(){
+  if(!hostLostTimer)return;
+  clearTimeout(hostLostTimer); hostLostTimer=null;
+  toast("👩‍🏫 선생님이 돌아왔어요!");
 }
 function hashUid(s){let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return h;}
 function showRoleCard(t1,t2){
@@ -4514,6 +4583,11 @@ $("btnEndPaintNow").onclick=()=>Net.forcePhase("PAINT");
 $("btnEndSeekNow").onclick=()=>Net.forcePhase("SEEK");
 $("btnForceEndRound").onclick=()=>{ if(confirm("라운드를 지금 강제로 종료할까요?"))Net.forceEndRound(); };
 $("btnFreeze").onclick=()=>{Audio2.resume();Net.toggleFrozen();};
+$("btnBlackout").onclick=()=>{Audio2.resume();
+  const off=((Net.meta.settings||{}).blackout==="off");
+  Net.updateSettings({blackout:off?"on":"off"});
+  toast(off?"⚡ 정전 기믹을 켰어요":"💡 정전 기믹을 껐어요");
+};
 
 function toggleTVMode(force){
   G.tvMode=typeof force==="boolean"?force:!G.tvMode;
@@ -4558,6 +4632,13 @@ function updateTeacherPanelUI(){
     const on=!!(Net.meta&&Net.meta.frozen);
     fb.classList.toggle("frozen",on);
     fb.textContent=on?"🌤 얼음 풀기 (다시 움직이기)":"🧊 얼음! (움직임 멈춤)";
+  }
+  // 정전 토글: 과학실일 때만 노출
+  const bb=$("btnBlackout");
+  if(bb){
+    const off=((Net.meta&&Net.meta.settings||{}).blackout==="off");
+    bb.textContent=off?"💡 정전 기믹 꺼짐 (켜기)":"⚡ 정전 기믹 켜짐 (끄기)";
+    bb.classList.toggle("hidden",currentMapId!=="science");
   }
   $("btnTvSpectateToggle").classList.toggle("hidden",
     !(G.isHost&&Net.mode==="online"&&G.screen==="GAME"&&(Net.meta.hostRole||"spectator")==="spectator"));
@@ -4753,8 +4834,12 @@ addEventListener("resize",onResize); onResize();
 document.addEventListener("visibilitychange",()=>{
   // 포커스를 잃었을 때 눌림 상태를 반드시 초기화해 복귀 후 자동 이동을 막습니다.
   if(document.hidden){resetMovementInputs();Music.stop();}
-  else if(Music.mode)Music.start(Music.mode);
+  else{
+    if(Music.mode)Music.start(Music.mode);
+    Net.resync&&Net.resync();   // 태블릿 절전/앱전환 복귀: 하트비트·페이즈·내 노드 즉시 재동기화
+  }
 });
+addEventListener("online",()=>{ Net.resync&&Net.resync(); });   // 네트워크 복구 즉시 재동기화
 
 /* ================= 메인 루프 ================= */
 buildTextures(); buildActiveMap("classroom"); buildPresets(); drawWheel(); drawVal(); drawRecent();
