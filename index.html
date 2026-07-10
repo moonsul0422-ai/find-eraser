@@ -152,6 +152,12 @@ label.chk input{width:20px;height:20px;}
   text-shadow:0 0 26px #ff8a00,4px 4px 0 rgba(0,0,0,.55);
   pointer-events:none;animation:frozenPulse 0.55s ease-in-out infinite;}
 #centerAlert.hidden{display:none;}
+#lobbyPracticeBox{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.5);padding:16px;pointer-events:auto;}
+#lobbyPracticeBox.hidden{display:none;}
+#lobbyPracticeBox .lpCard{background:var(--cream);border:3px solid var(--ink);border-radius:16px;
+  padding:18px 20px;max-width:520px;width:100%;max-height:88vh;overflow-y:auto;text-align:center;
+  box-shadow:5px 5px 0 rgba(0,0,0,.3);}
 @keyframes frozenPulse{0%,100%{transform:translate(-50%,-50%) scale(1);}50%{transform:translate(-50%,-50%) scale(1.08);}}
 
 /* ===== v2: 기록 모달 ===== */
@@ -411,11 +417,6 @@ label.chk input{width:20px;height:20px;}
       <button id="btnStats" class="secondary">📊 기록</button>
       <span id="waitMsg" class="note">선생님이 시작하기를 기다리는 중...</span>
     </div>
-    <div id="lobbyPracticeBox" class="hidden" style="margin-top:10px;">
-      <div class="note" style="margin-bottom:2px;">연습할 맵을 골라주세요</div>
-      <div id="lobbyPracticeMapBox" class="mapCardBox"></div>
-      <div class="row" style="margin-top:8px;"><button id="btnLobbyPracticeStart" class="blue">▶ 이 맵으로 연습 시작</button></div>
-    </div>
   </div>
 </div>
 
@@ -538,6 +539,17 @@ label.chk input{width:20px;height:20px;}
 <!-- v2: 학생 "얼음!" 배너 -->
 <div id="frozenBanner" class="hidden">🧊 얼음!</div>
 <div id="centerAlert" class="hidden">⚡ 곧 정전!</div>
+<div id="lobbyPracticeBox" class="hidden">
+  <div class="lpCard">
+    <h3 style="margin-bottom:6px;">🎮 기다리며 연습</h3>
+    <div class="note" style="margin-bottom:8px;">연습할 맵을 골라주세요</div>
+    <div id="lobbyPracticeMapBox" class="mapCardBox"></div>
+    <div class="row" style="margin-top:14px;justify-content:center;">
+      <button id="btnLobbyPracticeStart" class="blue">▶ 이 맵으로 연습 시작</button>
+      <button id="btnLobbyPracticeClose" class="secondary">닫기</button>
+    </div>
+  </div>
+</div>
 
 <div id="paintPanel" class="hidden">
   <button id="panelToggle">🎨 물감 접기</button>
@@ -1436,13 +1448,14 @@ function buildCafeteria(){
   const beltTex=canvasTex(256,64,(g,w,h)=>{ g.fillStyle="#4a4f55";g.fillRect(0,0,w,h);
     g.fillStyle="#f5c518";for(let i=0;i<6;i++){g.beginPath();g.moveTo(20+i*42,12);
       g.lineTo(44+i*42,32);g.lineTo(20+i*42,52);g.closePath();g.fill();} },5,1);
-  const b={xL:-26,xR:26,zNear:28,zFar:38,w:2.6,top:1.2,speed:6};
+  // 식탁 뒤(z≈27.4 벤치)와 뒷벽 사이 빈 통로에 배치 — 겹침 방지
+  const b={xL:-20,xR:20,zNear:31,zFar:39,w:2.6,top:1.2,speed:6};
   b.P=2*((b.xR-b.xL)+(b.zFar-b.zNear)); CAFE_BELT=b;
   const bmx=(b.xL+b.xR)/2, bcz=(b.zNear+b.zFar)/2, bLx=b.xR-b.xL, bLz=b.zFar-b.zNear;
-  addBox(bLx+b.w,1.2,b.w,lambert({map:beltTex}),bmx,0.6,b.zNear);       // 앞 변(등반 1.2)
-  addBox(bLx+b.w,1.2,b.w,lambert({map:beltTex}),bmx,0.6,b.zFar);        // 뒤 변
-  addBox(b.w,1.2,bLz+b.w,lambert({map:beltTex}),b.xR,0.6,bcz);         // 우 변
-  addBox(b.w,1.2,bLz+b.w,lambert({map:beltTex}),b.xL,0.6,bcz);         // 좌 변
+  addBox(bLx+b.w,1.2,b.w,lambert({map:beltTex}),bmx,0.6,b.zNear);       // 앞 변(코너 포함, 등반 1.2)
+  addBox(bLx+b.w,1.2,b.w,lambert({map:beltTex}),bmx,0.6,b.zFar);        // 뒤 변(코너 포함)
+  addBox(b.w,1.2,bLz-b.w,lambert({map:beltTex}),b.xR,0.6,bcz);         // 우 변(코너 사이만 — 겹침/깨짐 방지)
+  addBox(b.w,1.2,bLz-b.w,lambert({map:beltTex}),b.xL,0.6,bcz);         // 좌 변
   // 벨트를 따라 순환하는 식판 오브젝트 8개(장식 — 계속 빙 돔)
   const trayCols=[0xE64545,0x3f9d5a,0x4A7FB5,0xF5C518,0xe07f3e,0x8a5ab9,0x2ec4b6,0xff7eb0];
   for(let i=0;i<8;i++){
@@ -4387,6 +4400,7 @@ async function startLobbyPractice(){
   const btn=$("btnLobbyPracticeStart"); if(btn)btn.disabled=true;
   const prev=btn?btn.textContent:""; if(btn)btn.textContent="맵 준비 중...";
   try{
+    $("lobbyPracticeBox").classList.add("hidden");   // 모달 닫기
     // 고른 맵으로 실제 씬을 준비(이미 그 맵이면 다시 짓지 않음)
     if(currentMapId!==practiceMapId){ try{ await buildActiveMap(practiceMapId); }catch(e){ console.warn("맵 준비 실패, 교실로 진행",e); } }
     G.lobbyPractice=true;G.phase="LOBBY_PRACTICE";G.role="hider";G.found=false;
@@ -4414,10 +4428,12 @@ function returnFromLobbyPractice(){
 $("btnLobbyPractice").onclick=()=>{
   if(G.isHost||Net.mode!=="online"||Net.meta.phase!=="LOBBY")return;
   Audio2.resume();
-  const box=$("lobbyPracticeBox"); box.classList.toggle("hidden");
-  if(!box.classList.contains("hidden")) renderLobbyPracticeMapCards();
+  renderLobbyPracticeMapCards();
+  $("lobbyPracticeBox").classList.remove("hidden");
 };
 $("btnLobbyPracticeStart").onclick=startLobbyPractice;
+$("btnLobbyPracticeClose").onclick=()=>$("lobbyPracticeBox").classList.add("hidden");
+$("lobbyPracticeBox").onclick=e=>{ if(e.target===$("lobbyPracticeBox"))$("lobbyPracticeBox").classList.add("hidden"); };
 $("btnPracticeReturn").onclick=returnFromLobbyPractice;
 
 async function startRoundButton(btn){
