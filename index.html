@@ -1276,8 +1276,6 @@ function buildScienceLab(){
   // ── 우측 벽: 계단식 기구장(등반 6→10) + 비커·플라스크 + 화분 + 수조 ──
   const eqX=ROOM_W/2-5;
   addStairs(eqX,-12,0,-1,10,8,1.25,2.0,[lambert({color:0xb0b6ba})]);    // 등반 계단(단차 1.25)
-  [[0x9bd83c,-14],[0xff7eb0,-16],[0x00b4d8,-18]].forEach(([cc,zz])=>
-    addCyl(0.7,1.6,lambert({color:cc}),eqX,10.9,zz,{rt:0.55,collide:false})); // 상단 기구
   addBox(9,10,10,lambert({color:0xaeb4b8}),eqX+0.5,5,10);              // 기구장 몸체
   [[3.5,5],[7.5,5],[3.5,15],[7.5,15]].forEach(([dy,dz],i)=>            // 유리 기구
     addCyl(0.9,2.4,lambert({color:RB16[(i*3)%RB16.length]}),eqX-3,dy,10-5+dz-5,{rt:0.7,collide:false,sample:true}));
@@ -1310,11 +1308,57 @@ function buildScienceLab(){
   // 참고 이미지 반영: 유리문 상부 벽장 · 시약 냉장고 · 교사 책상 · 폐기물통 · 구급함 · 분자 시계 · 이동 카트
   // ================================================================
   const glassDoor=lambert({color:0xbfe0ea,transparent:true,opacity:0.4});
-  // 유리문 상부 벽장(뒷벽 상단, 유리 안 실험기구) — 이미지 1·2
-  [-18,-2,14,30].forEach(cx=>{
-    addBox(14,10,3,lambert({color:0xf2f4f6}),cx,40,ROOM_D/2-2.5,{collide:false,sample:false});           // 장 몸체
-    addBox(13,9,0.3,glassDoor,cx,40,ROOM_D/2-4.1,{collide:false,sample:false});                          // 유리문
-    for(let i=0;i<4;i++) addCyl(0.5,2.2,lambert({color:RB16[(Math.abs(cx)+i)%16]}),cx-5+i*3.3,39,ROOM_D/2-4.4,{rt:0.35,collide:false,sample:true}); // 안쪽 기구
+  // ── 실험도구 소품 세트(뒷벽 유리장을 채움) — 참고 이미지의 플라스크·비커·메스실린더·
+  //    드로퍼·알코올램프·시험관 랙·온도계. 도구 각각은 실제 형태로 충돌하지만, 도구
+  //    사이 빈틈이나 장 자체(몸체·유리문)는 계속 통과 허용 — 지우개가 그 안에 들어가 숨습니다.
+  const glassMatTool=lambert({color:0xd8eef7,transparent:true,opacity:0.4});
+  const flaskErlen=(x,y,z,cc)=>{                                       // 삼각플라스크
+    addCyl(0.5,1.0,glassMatTool,x,y+0.5,z,{rt:0.15,collide:true,sample:false});
+    addCyl(0.15,0.35,glassMatTool,x,y+1.18,z,{collide:false,sample:false});
+    addCyl(0.4,0.4,lambert({color:cc}),x,y+0.22,z,{rt:0.28,collide:false,sample:true});
+  };
+  const beakerTool=(x,y,z,cc)=>{                                       // 비커
+    addCyl(0.4,0.9,glassMatTool,x,y+0.45,z,{collide:true,sample:false});
+    addCyl(0.36,0.5,lambert({color:cc}),x,y+0.27,z,{collide:false,sample:true});
+  };
+  const cylinderTool=(x,y,z,cc)=>{                                     // 메스실린더
+    addCyl(0.2,1.4,glassMatTool,x,y+0.7,z,{collide:true,sample:false});
+    addCyl(0.16,0.85,lambert({color:cc}),x,y+0.45,z,{collide:false,sample:true});
+  };
+  const dropperTool=(x,y,z,cc)=>{                                      // 드로퍼(스포이드)
+    addCyl(0.22,0.65,lambert({color:cc,transparent:true,opacity:0.55}),x,y+0.33,z,{collide:true,sample:false});
+    addCyl(0.13,0.28,lambert({color:0xE64545}),x,y+0.78,z,{rt:0.17,collide:false,sample:true});
+  };
+  const burnerTool=(x,y,z)=>{                                          // 알코올램프
+    addCyl(0.3,0.16,lambert({color:0x3a3f45}),x,y+0.08,z,{rt:0.38,collide:true,sample:false});
+    addCyl(0.11,0.55,lambert({color:0x9aa2a8}),x,y+0.44,z,{collide:true,sample:false});
+    addCyl(0.05,0.28,lambert({color:0xF5C518,emissive:0xe07f3e,emissiveIntensity:0.8}),x,y+0.82,z,{rt:0.15,collide:false,sample:true});
+  };
+  const thermoTool=(x,y,z)=>{                                          // 온도계
+    addCyl(0.06,0.9,lambert({color:0xf4f4f4}),x,y+0.45,z,{collide:true,sample:false});
+    addCyl(0.1,0.16,lambert({color:0xE64545}),x,y+0.04,z,{rt:0.1,collide:false,sample:true});
+  };
+  const tubeRackTool=(x,y,z,seed)=>{                                   // 시험관 랙
+    addBox(1.3,0.28,0.55,lambert({color:0x4A7FB5}),x,y+0.14,z,{collide:true,sample:true});
+    const rnd=mulberry32(seed);
+    [-0.45,-0.15,0.15,0.45].forEach(ox=>{
+      addCyl(0.08,0.65,glassMatTool,x+ox,y+0.6,z,{collide:true,sample:false});
+      addCyl(0.06,0.22,lambert({color:LIB_PAL[(rnd()*LIB_PAL.length)|0]}),x+ox,y+0.38,z,{collide:false,sample:true});
+    });
+  };
+  const labTools=[flaskErlen,beakerTool,cylinderTool,dropperTool,thermoTool];
+  // 유리문 상부 벽장(뒷벽 상단, 유리 안 실험기구 2단 선반) — 이미지 1·2
+  [-18,-2,14,30].forEach((cx,ci)=>{
+    addBox(14,10,3,lambert({color:0xf2f4f6}),cx,40,ROOM_D/2-2.5,{collide:false,sample:false});           // 장 몸체(통과 허용 — 안으로 들어가 숨을 수 있음)
+    addBox(13,9,0.3,glassDoor,cx,40,ROOM_D/2-4.1,{collide:false,sample:false});                          // 유리문(통과 허용)
+    [42.6,37.2].forEach((sy,ri)=>{
+      addBox(12.6,0.2,2.2,lambert({color:0xdfe3e6}),cx,sy,ROOM_D/2-4.3,{collide:true,sample:false});     // 유리 선반(실제 충돌)
+      if(ri===0){ tubeRackTool(cx-3.3,sy+0.1,ROOM_D/2-4.4,ci*17+7); burnerTool(cx+3.3,sy+0.1,ROOM_D/2-4.4); }
+      [-5,-1.8,1.8,4.9].forEach((ox,k)=>{ if(ri===0&&(k===1||k===2))return; // 시험관 랙·알코올램프 자리는 건너뜀
+        const fn=labTools[(ci+ri*2+k)%labTools.length], cc=RB16[(ci*7+ri*3+k)%RB16.length];
+        fn(cx+ox,sy+0.1,ROOM_D/2-4.4,cc);
+      });
+    });
   });
   // 시약 냉장고(유리문 키큰장) — 이미지 3
   addBox(6,16,6,lambert({color:0xdfe3e6}),6,8,ROOM_D/2-4);
