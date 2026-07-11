@@ -643,8 +643,8 @@ const FIREBASE_CONFIG = {
    멀티 서버 — 한 서버(Firebase 프로젝트)당 동시접속 약 100명.
    새 서버를 열려면 위와 같은 config 객체를 만들어 아래 null 자리에 넣으면
    자동으로 '준비중'이 풀리고 선택 가능해집니다.
-   ★ 방 코드 첫 자리 = 서버 번호 (서버1 방은 1○○○, 서버2 방은 2○○○ …)
-     → 학생은 서버를 몰라도 코드/QR만으로 맞는 서버에 자동 연결됩니다.
+   ★ 방 코드는 자유로운 4자리(전 서버 통틀어 유일하게 발급). 학생이 코드/QR로 입장하면
+     활성 서버들을 병렬 조회해 그 방이 있는 서버로 자동 연결됩니다(findRoomServer).
    ============================================================ */
 const FIREBASE_SERVERS=[
   {idx:1,name:"서버 1",config:FIREBASE_CONFIG},
@@ -675,7 +675,15 @@ const FIREBASE_SERVERS=[
     messagingSenderId: "829957567208",
     appId: "1:829957567208:web:a40e5e29a524a514c5cf5d"
   }},
-  {idx:5,name:"서버 5",config:null},
+  {idx:5,name:"서버 5",config:{
+    apiKey: "AIzaSyAngCjz7ZoV6aQ88MfKFFin6LIQDSJZQh4",
+    authDomain: "find-eraser-s5.firebaseapp.com",
+    databaseURL: "https://find-eraser-s5-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "find-eraser-s5",
+    storageBucket: "find-eraser-s5.firebasestorage.app",
+    messagingSenderId: "120934496430",
+    appId: "1:120934496430:web:06279d9627d48f6d5a153f"
+  }},
 ];
 const SERVER_CAP=100;   // 서버당 동시접속 한도(표시용)
 
@@ -3411,17 +3419,30 @@ const Net={
     localStorage.setItem("er_uid",u); sessionStorage.setItem("er_uid",u);
     this.uid=u; return u;
   },
+  /* 어느 서버에 있는 방 코드인지 REST로 병렬 조회 → 서버 번호 반환(없으면 null).
+     방 코드에 서버 번호를 넣지 않아도, 학생은 코드/QR만으로 맞는 서버를 찾아 들어갑니다. */
+  async findRoomServer(code){
+    const checks=FIREBASE_SERVERS.filter(s=>s.config).map(async srv=>{
+      try{
+        const url=srv.config.databaseURL.replace(/\/$/,"")+`/rooms/${code}/meta.json?shallow=true`;
+        const r=await fetch(url,{signal:AbortSignal.timeout(6000)});
+        if(r.ok){ const j=await r.json(); if(j) return srv.idx; }
+      }catch(e){}
+      return null;
+    });
+    const results=await Promise.all(checks);
+    return results.find(x=>x!=null) ?? null;
+  },
   async createRoom(nick,serverIdx=1){
     if(!await this.initFirebase(serverIdx))return false;
     this.nick=nick;
     const {ref,get,set,onDisconnect,serverTimestamp}=this.fb;
     this.myUidInit();
     let code;
-    for(let t=0;t<12;t++){
-      // 방 코드 첫 자리 = 서버 번호 → 학생 입장 시 자동으로 맞는 서버에 연결
-      code=String(serverIdx*1000+Math.floor(Math.random()*1000));
-      const s=await get(ref(this.db,`rooms/${code}/meta`));
-      if(!s.exists())break;
+    for(let t=0;t<15;t++){
+      // 자유로운 4자리 코드. 전체 서버를 통틀어 중복이 없도록 발급(입장 검색이 유일하게 맞게)
+      code=String(1000+Math.floor(Math.random()*9000));
+      if(!(await this.findRoomServer(code)))break;
     }
     this.code=code; G.code=code; G.isHost=true; this._kicked=false;
     await set(ref(this.db,`rooms/${code}/meta`),{host:this.uid,phase:"LOBBY",phaseEndsAt:0,round:0,
@@ -3438,10 +3459,9 @@ const Net={
     return true;
   },
   async joinRoom(code,nick){
-    // 방 코드 첫 자리 = 서버 번호. (1~5 밖이면 예전 코드 → 서버1로 시도)
-    const sIdx=(+code[0]>=1&&+code[0]<=5)?+code[0]:1;
-    const srv=FIREBASE_SERVERS[sIdx-1];
-    if(!srv||!srv.config)return "prep";
+    // 코드가 어느 서버의 방인지 전 서버에서 찾아 연결(코드에 서버 번호를 넣지 않아도 됨)
+    const sIdx=await this.findRoomServer(code);
+    if(sIdx==null)return "noroom";
     if(!await this.initFirebase(sIdx))return "nofb";
     this.nick=nick;
     const {ref,get,set,onDisconnect,serverTimestamp}=this.fb;
