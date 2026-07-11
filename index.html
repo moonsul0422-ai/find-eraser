@@ -150,7 +150,7 @@ label.chk input{width:20px;height:20px;}
   text-shadow:2px 2px 0 rgba(0,0,0,.6);}
 /* v2: 학생 화면 "얼음!" 표시 */
 #frozenBanner{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:60;
-  font-size:clamp(48px,14vw,120px);color:#bff0ff;text-shadow:0 0 20px #4ab8ff,4px 4px 0 rgba(0,0,0,.5);
+  font-size:clamp(24px,6vw,48px);color:#bff0ff;text-shadow:0 0 14px #4ab8ff,3px 3px 0 rgba(0,0,0,.5);
   pointer-events:none;animation:frozenPulse 1.2s ease-in-out infinite;}
 #frozenBanner.hidden{display:none;}
 #centerAlert{position:fixed;top:38%;left:50%;transform:translate(-50%,-50%);z-index:58;
@@ -929,8 +929,10 @@ function addStairs(x,z,dirX,dirZ,targetH,stepW=4,stepH=1.25,stepD=1.7,mats=null)
 }
 
 /* ================= 교실 맵 (120 × 90) ================= */
-const ROOM_W=120, ROOM_D=90, WALL_H=56;
+const ROOM_W=120, ROOM_D=90;
+let WALL_H=56;   // 맵마다 다르게 쓸 수 있도록 가변값(각 build*() 함수 시작에서 그 맵에 맞는 높이로 재설정)
 function buildMap(){
+  WALL_H=56;
   // 바닥
   const floor=new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W,ROOM_D),lambert({map:TEX.floor}));
   floor.rotation.x=-Math.PI/2; mapRoot.add(floor); samplables.push(floor);
@@ -1204,6 +1206,7 @@ const LIB_PAL=[0xE64545,0xF5C518,0x3f9d5a,0x4A7FB5,0x8a5ab9,0xe07f3e,0x2ec4b6,0x
    🧪 맵 1. 과학실 — buildScienceLab + updateScienceLabGimmick(정전)
    ================================================================ */
 function buildScienceLab(){
+  WALL_H=33;   // 다른 맵보다 낮은 천장(다른 맵은 56) — 실험실이 답답하지 않으면서도 덜 높게
   const floorTex=canvasTex(256,256,(g,w,h)=>{
     g.fillStyle="#dfe4e8";g.fillRect(0,0,w,h);
     g.strokeStyle="rgba(120,132,142,.55)";g.lineWidth=2;
@@ -1283,9 +1286,8 @@ function buildScienceLab(){
     }
   });
 
-  // ── 우측 벽: 계단식 기구장(등반 6→10) + 비커·플라스크 + 화분 + 수조 ──
+  // ── 우측 벽: 기구장 + 비커·플라스크 + 화분 + 수조 ──
   const eqX=ROOM_W/2-5;
-  addStairs(eqX,-12,0,-1,10,8,1.25,2.0,[lambert({color:0xb0b6ba})]);    // 등반 계단(단차 1.25)
   addBox(9,10,10,lambert({color:0xaeb4b8}),eqX+0.5,5,10);              // 기구장 몸체
   [[3.5,5],[7.5,5],[3.5,15],[7.5,15]].forEach(([dy,dz],i)=>            // 유리 기구
     addCyl(0.9,2.4,lambert({color:RB16[(i*3)%RB16.length]}),eqX-3,dy,10-5+dz-5,{rt:0.7,collide:false,sample:true}));
@@ -1305,10 +1307,6 @@ function buildScienceLab(){
     for(let i=0;i<6;i++){g.fillStyle=cs[i];g.fillRect(8+ (i%3)*64,8+Math.floor(i/3)*64,58,58);} });
   const safe=new THREE.Mesh(new THREE.PlaneGeometry(20,14),lambert({map:safeTex}));
   safe.position.set(-6,20,ROOM_D/2-0.4); safe.rotation.y=Math.PI; mapRoot.add(safe); samplables.push(safe);
-  // 사물함(우측 뒤벽)
-  const lockMat=lambert({color:0x6f7b82});
-  for(let r=0;r<4;r++)for(let c=0;c<5;c++)
-    addBox(7.4,4.8,6,lockMat,14+c*8,2.6+r*5,ROOM_D/2-3.5);
   // 싱크대(개수대) = 물통 리필존
   addBox(16,3,5,lambert({color:0xc7ccd2}),ROOM_W/2-11,1.5,ROOM_D/2-4);
   addBox(14,0.4,4,lambert({color:0x8fb3c4}),ROOM_W/2-11,3.05,ROOM_D/2-4,{collide:false,sample:true});
@@ -1356,17 +1354,21 @@ function buildScienceLab(){
       addCyl(0.06,0.22,lambert({color:LIB_PAL[(rnd()*LIB_PAL.length)|0]}),x+ox,y+0.38,z,{collide:false,sample:true});
     });
   };
-  const labTools=[flaskErlen,beakerTool,cylinderTool,dropperTool,thermoTool];
-  // 유리문 상부 벽장(뒷벽 상단, 유리 안 실험기구 2단 선반) — 이미지 1·2
+  // 도구 7종(플라스크·비커·메스실린더·드로퍼·온도계·시험관랙·알코올램프)을 고르게 순환 배치
+  const allTools=[flaskErlen,beakerTool,cylinderTool,dropperTool,thermoTool,tubeRackTool,burnerTool];
+  const CAB_Y=22;   // 낮아진 천장(33)에 맞춰 벽장을 사람 눈높이로 내림(전엔 40으로 너무 높았음)
+  // 유리문 상부 벽장(뒷벽, 유리 안 실험기구 2단 선반) — 이미지 1·2
   [-18,-2,14,30].forEach((cx,ci)=>{
-    addBox(14,10,3,lambert({color:0xf2f4f6}),cx,40,ROOM_D/2-2.5,{collide:false,sample:false});           // 장 몸체(통과 허용 — 안으로 들어가 숨을 수 있음)
-    addBox(13,9,0.3,glassDoor,cx,40,ROOM_D/2-4.1,{collide:false,sample:false});                          // 유리문(통과 허용)
-    [42.6,37.2].forEach((sy,ri)=>{
-      addBox(12.6,0.2,2.2,lambert({color:0xdfe3e6}),cx,sy,ROOM_D/2-4.3,{collide:true,sample:false});     // 유리 선반(실제 충돌)
-      if(ri===0){ tubeRackTool(cx-3.3,sy+0.1,ROOM_D/2-4.4,ci*17+7); burnerTool(cx+3.3,sy+0.1,ROOM_D/2-4.4); }
-      [-5,-1.8,1.8,4.9].forEach((ox,k)=>{ if(ri===0&&(k===1||k===2))return; // 시험관 랙·알코올램프 자리는 건너뜀
-        const fn=labTools[(ci+ri*2+k)%labTools.length], cc=RB16[(ci*7+ri*3+k)%RB16.length];
-        fn(cx+ox,sy+0.1,ROOM_D/2-4.4,cc);
+    addBox(14,10,3,lambert({color:0xf2f4f6}),cx,CAB_Y,ROOM_D/2-2.5,{collide:false,sample:false});          // 장 몸체(통과 허용 — 안으로 들어가 숨을 수 있음)
+    addBox(13,9,0.3,glassDoor,cx,CAB_Y,ROOM_D/2-4.1,{collide:false,sample:false});                         // 유리문(통과 허용)
+    addBox(13.6,9.6,0.35,lambert({color:0xe4e8ea}),cx,CAB_Y,ROOM_D/2-1.15,{collide:true,sample:false});    // 장 뒷벽(실제 충돌) — 도구 뒤로 빠져나가 못 나가게 막음
+    [CAB_Y+2.6,CAB_Y-2.8].forEach((sy,ri)=>{
+      addBox(12.6,0.2,2.2,lambert({color:0xdfe3e6}),cx,sy,ROOM_D/2-4.3,{collide:true,sample:false});       // 유리 선반(실제 충돌)
+      [-3.9,-1.3,1.3,3.9].forEach((ox,k)=>{                                                                // 4칸 고르게 배치(빈 공간 없이 옆으로 펼침)
+        const fn=allTools[(ci*7+ri*4+k)%allTools.length], cc=RB16[(ci*7+ri*3+k)%RB16.length];
+        if(fn===tubeRackTool) tubeRackTool(cx+ox,sy+0.1,ROOM_D/2-4.4,ci*17+ri*4+k+7);
+        else if(fn===burnerTool) burnerTool(cx+ox,sy+0.1,ROOM_D/2-4.4);
+        else fn(cx+ox,sy+0.1,ROOM_D/2-4.4,cc);
       });
     });
   });
@@ -1406,10 +1408,10 @@ function buildScienceLab(){
   addAABBCollider(32,1.7,34,5,3.4,3.5);                                                          // 카트 통짜 충돌
   [0x2f8fd6,0x9bd83c,0xff7eb0].forEach((cc,i)=>addCyl(0.4,1.2,lambert({color:cc}),30.5+i*1.5,3.9,34,{rt:0.3,collide:false,sample:true}));
 
-  // ── 비상등(초록 발광, 앞뒤 벽) — 정전 중 방향감각 유지 ──
+  // ── 비상등(초록 발광, 앞뒤 벽) — 정전 중 방향감각 유지 (낮아진 천장에 맞춰 위치 조정) ──
   const exitMat=lambert({color:0x37d67a,emissive:0x2fbf6a,emissiveIntensity:1.0});
-  addBox(4,1.4,0.4,exitMat,-46,30,-ROOM_D/2+1.3,{collide:false,sample:false});
-  addBox(4,1.4,0.4,exitMat, 46,30, ROOM_D/2-1.3,{collide:false,sample:false});
+  addBox(4,1.4,0.4,exitMat,-46,27,-ROOM_D/2+1.3,{collide:false,sample:false});
+  addBox(4,1.4,0.4,exitMat, 46,27, ROOM_D/2-1.3,{collide:false,sample:false});
 
   // 스폰: 술래 3곳(중앙 통로 x=0, 가구와 9유닛+ 여유) / 지우개 12곳 분산
   seekerSpawns.push(new THREE.Vector3(0,0,-12),new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,12));
@@ -1478,6 +1480,7 @@ function updateScienceLabGimmick(dt){
    ================================================================ */
 let CAFE_SLIP=[], CAFE_STEAM=[], CAFE_BELT=null, CAFE_STEAM_SPR=[], CAFE_TRAYS=[];
 function buildCafeteria(){
+  WALL_H=56;
   CAFE_SLIP=[]; CAFE_STEAM=[]; CAFE_BELT=null; CAFE_STEAM_SPR=[]; CAFE_TRAYS=[];
   const floorTex=canvasTex(256,256,(g,w,h)=>{
     for(let r=0;r<8;r++)for(let c=0;c<8;c++){ g.fillStyle=((r+c)%2)?"#e7ded0":"#d3c7b2";
@@ -1735,6 +1738,7 @@ function buildBookRow(cx,height,seed,dir){
   });
 }
 function buildLibrary(){
+  WALL_H=56;
   Carts=[];
   const floorTex=canvasTex(256,256,(g,w,h)=>{
     for(let i=0;i<7;i++){ g.fillStyle=i%2?"#bd8f56":"#c69a63"; g.fillRect(0,i*38,w,38); }  // 원목 플랭크(교차 톤)
@@ -1749,9 +1753,6 @@ function buildLibrary(){
   const rowH=[20,12,12,6];
   [-45,-35,-25,-15].forEach((x,i)=>buildBookRow(x,rowH[i],1000+i*100,-1)); // 좌: 아일 오른쪽
   [45,35,25,15].forEach((x,i)=>buildBookRow(x,rowH[i],2000+i*100,1));       // 우: 아일 왼쪽
-
-  // 높은 서가(20) 꼭대기까지 계단식 등반 — 좌측 뒤 코너
-  addStairs(-52,32,1,0,20,5,1.25,2.0,[lambert({color:0x8a5a33})]);
 
   // ── 중앙 열람존: 열람 테이블 4개 + 초록 갓 스탠드 + 천장 펜던트 + 마주보는 의자 ──
   const cordMat=lambert({color:0x2b2b2b});
@@ -2730,6 +2731,22 @@ function isFrozenNow(){
   // 선생님이 얼음 모드를 켜면 지우개(요정)만 움직이지 못합니다. 술래·관전·연습은 제외.
   return !!(Net.mode==="online" && Net.meta && Net.meta.frozen &&
             G.role==="hider" && !G.found && !G.spectating && !G.lobbyPractice);
+}
+/* v3: 얼음 배너는 계속 떠 있지 않고, 얼기 시작한 순간에만 2초짜리 알림처럼 살짝 보여줍니다. */
+let _frozenBannerTimer=null, _wasFrozenNow=false;
+function resetFrozenBanner(){
+  if(_frozenBannerTimer){clearTimeout(_frozenBannerTimer);_frozenBannerTimer=null;}
+  _wasFrozenNow=false;
+  $("frozenBanner").classList.add("hidden");
+}
+function updateFrozenBanner(){
+  const now=isFrozenNow();
+  if(now&&!_wasFrozenNow){
+    $("frozenBanner").classList.remove("hidden");
+    if(_frozenBannerTimer)clearTimeout(_frozenBannerTimer);
+    _frozenBannerTimer=setTimeout(()=>{$("frozenBanner").classList.add("hidden");_frozenBannerTimer=null;},2000);
+  }
+  _wasFrozenNow=now;
 }
 function updateMovement(dt){
   const ghost=G.role==="ghost";
@@ -4092,7 +4109,7 @@ function enterPaint(){
   showScreen("GAME");
   foundLog=[]; G.tvMode=false; $("tvHud").classList.add("hidden"); $("tvFollowBar").classList.add("hidden");
   if(G.isHost && Net.meta && Net.meta.frozen) Net.setFrozen(false); // 숨는 시간엔 얼음 자동 해제
-  $("frozenBanner").classList.add("hidden");
+  resetFrozenBanner();
   G.texUploaded=false; G.found=false; G.paint=1000; G.pose="stand"; G.lastPosSent="";
   G.flying=false; G.flyUp=false; G.flyDown=false; G.lastJumpTap=0;G.lastFlyDownTap=0;
   G.vy=0; G.spectating=false;G.lobbyPractice=false; G.mirror&&setMirror(false);
@@ -4263,7 +4280,7 @@ $("btnSkipReveal").onclick=finishResultReveal;
 function enterResult(){
   G.spectating=false;setMirror(false);Music.stop();updateSpectatorButton();
   G.tvMode=false; $("tvHud").classList.add("hidden"); $("tvFollowBar").classList.add("hidden");
-  $("frozenBanner").classList.add("hidden");
+  resetFrozenBanner();
   if(G.isHost && Net.meta && Net.meta.frozen) Net.setFrozen(false);
   const winner=(Net.mode==="online"?Net.meta.winner:G.practiceWinner)||"hider";
   const seekWin=winner==="seeker";
@@ -4435,8 +4452,8 @@ function updateHUD(){
   // 학생이 튕겼을 때 선생님이 바로 QR을 다시 보여줄 수 있게
   $("btnShowQR").classList.toggle("hidden",!(G.isHost&&Net.mode==="online"&&currentQRCanvas));
   updateTeacherPanelUI();
-  // v2: 얼음 배너 — 얼어붙은 지우개 본인 화면에만 표시
-  $("frozenBanner").classList.toggle("hidden",!isFrozenNow());
+  // v2: 얼음 배너 — 얼어붙은 지우개 본인 화면에만, 얼기 시작한 순간 2초만 표시
+  updateFrozenBanner();
   if(G.tvMode){
     $("tvTimer").textContent=(G.phase==="PAINT"||G.phase==="SEEK")?fmtTime(G.remainMs):"--:--";
     const hidersArr=Object.values(Net.players||{}).filter(p=>p.role==="hider");
