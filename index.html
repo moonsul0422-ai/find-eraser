@@ -1662,8 +1662,9 @@ function buildBookRow(cx,height,seed,dir){
   const cubbyH=3.3, half=2.0, sw=1.3;      // half=서가 반너비(바깥면), sw=선반 깊이
   segs.forEach((s,si)=>{
     const cz=(s[0]+s[1])/2, len=s[1]-s[0];
-    addBox(1.4,height,len,back,cx,height/2,cz);                                   // 가운데 벽(충돌 + 양쪽 칸 뒷판)
-    addAABBCollider(cx,cubbyH+(height-cubbyH)/2,cz,half*2,height-cubbyH,len);     // 굴 위 통짜 충돌(관통 방지, 보이지 않음)
+    addBox(1.4,height,len,back,cx,height/2,cz);                                   // 가운데 벽(충돌 + 양쪽 칸 뒷판, 반대편 통로 관통 방지)
+    // 굴 위 책장 칸은 통짜 충돌을 두지 않습니다 — 책이 없는 빈 칸에는 지우개가 들어가 숨을 수 있어요.
+    // (측판·선반판·책은 모두 collide:false이므로 칸 앞이 자연스럽게 열려 있습니다)
     [1,-1].forEach(sd=>{
       const scx=cx+sd*1.35;                                                       // 칸(선반) 중심 x
       // 세로 측판(세그먼트 양끝) — 바깥면 ±2.0까지, 프레임
