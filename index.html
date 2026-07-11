@@ -1648,9 +1648,9 @@ function fillShelfBooks(faceX,cz,lenZ,y,seed){
   let z=cz-lenZ/2+0.4;
   while(z<cz+lenZ/2-0.5){
     const bw=0.5+rnd()*0.5, bh=1.2+rnd()*0.5;
-    // 약 26%는 빈 칸 → 사이사이 틈 + 안쪽 벽이 보여 움푹 들어간 느낌
+    // 약 26%는 빈 칸 → 사이사이 틈 + 안쪽 벽이 보여 움푹 들어간 느낌(그 틈으로 지우개가 들어가 숨음)
     if(rnd()>0.26)
-      addBox(0.5,bh,bw,lambert({color:LIB_PAL[(rnd()*LIB_PAL.length)|0]}),faceX,y+bh/2,z+bw/2,{collide:false,sample:true});
+      addBox(0.5,bh,bw,lambert({color:LIB_PAL[(rnd()*LIB_PAL.length)|0]}),faceX,y+bh/2,z+bw/2,{collide:true,sample:true});
     z+=bw+0.06;
   }
 }
@@ -1663,16 +1663,16 @@ function buildBookRow(cx,height,seed,dir){
   segs.forEach((s,si)=>{
     const cz=(s[0]+s[1])/2, len=s[1]-s[0];
     addBox(1.4,height,len,back,cx,height/2,cz);                                   // 가운데 벽(충돌 + 양쪽 칸 뒷판, 반대편 통로 관통 방지)
-    // 굴 위 책장 칸은 통짜 충돌을 두지 않습니다 — 책이 없는 빈 칸에는 지우개가 들어가 숨을 수 있어요.
-    // (측판·선반판·책은 모두 collide:false이므로 칸 앞이 자연스럽게 열려 있습니다)
+    // 굴 위 책장 칸은 통짜 충돌을 두지 않습니다 — 선반판·측판·책 각자의 실제 형태만 충돌해서,
+    // 책이 없는 빈 칸(그 틈)으로는 지우개가 자연스럽게 들어가 숨을 수 있어요.
     [1,-1].forEach(sd=>{
       const scx=cx+sd*1.35;                                                       // 칸(선반) 중심 x
       // 세로 측판(세그먼트 양끝) — 바깥면 ±2.0까지, 프레임
       [cz-len/2+0.18,cz+len/2-0.18].forEach(ez=>
-        addBox(sw,height-cubbyH,0.34,wood,scx,cubbyH+(height-cubbyH)/2,ez,{collide:false,sample:false}));
+        addBox(sw,height-cubbyH,0.34,wood,scx,cubbyH+(height-cubbyH)/2,ez,{collide:true,sample:false}));
       // 가로 선반판 + 그 위에 안쪽으로 꽂힌 책
       for(let sy=cubbyH;sy<height-0.5;sy+=2.1){
-        addBox(sw,0.22,len,shelfMat,scx,sy,cz,{collide:false,sample:false});       // 선반판(바깥면까지)
+        addBox(sw,0.22,len,shelfMat,scx,sy,cz,{collide:true,sample:false});        // 선반판(바깥면까지)
         if(sy+2.1<height) fillShelfBooks(cx+sd*1.42,cz,len,sy+0.14,seed+si*30+((sy*4)|0)+(sd>0?0:7)); // 책(바깥면 2.0보다 안쪽)
       }
       addBox(sw,0.22,len,wood,scx,height-0.2,cz,{collide:false,sample:false});     // 천장판
