@@ -131,6 +131,12 @@ label.chk input{width:20px;height:20px;}
 #tvRemain{font-size:clamp(18px,3vw,26px);color:var(--yellow);text-shadow:2px 2px 0 rgba(0,0,0,.6);margin-top:4px;}
 #tvLog{margin-top:10px;display:flex;flex-direction:column;gap:3px;align-items:center;}
 #tvLog div{font-size:16px;color:#fff;background:rgba(0,0,0,.4);padding:3px 12px;border-radius:8px;}
+/* v3: 숨는 시간엔 위치를 일부러 안 보여준다는 안내(화면 중앙) */
+#tvBlockedNotice{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;
+  color:#fff;background:rgba(0,0,0,.5);border-radius:16px;padding:18px 26px;max-width:min(86vw,520px);}
+#tvBlockedNotice.hidden{display:none;}
+#tvBlockedNotice .big{font-size:clamp(20px,4vw,30px);font-weight:800;}
+#tvBlockedNotice .small{font-size:clamp(13px,2.4vw,16px);opacity:.85;margin-top:6px;}
 #btnTvSpectateToggle{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);pointer-events:auto;z-index:41;}
 /* v2: 얼음 모드 버튼 활성 표시 */
 #btnFreeze.frozen{background:#7ecbff;color:var(--ink);}
@@ -535,6 +541,10 @@ label.chk input{width:20px;height:20px;}
   <div id="tvTimer">--:--</div>
   <div id="tvRemain">남은 요정: -</div>
   <div id="tvLog"></div>
+  <div id="tvBlockedNotice" class="hidden">
+    <div class="big">🙈 숨는 시간에는 위치를 보여주지 않아요</div>
+    <div class="small">찾는 시간이 되면 술래를 따라 화면을 중계할게요!</div>
+  </div>
 </div>
 <button id="btnTvSpectateToggle" class="hidden">👀 자유 시점 ↔ 📺 TV</button>
 
@@ -1651,7 +1661,8 @@ function updateConveyor(dt){
   CAFE_TRAYS.forEach(tr=>{ const p=beltPathPos(b.speed*t+tr.d0,b);
     tr.mesh.position.set(p.x,b.top+0.35,p.z); tr.mesh.rotation.y=(p.dz!==0)?Math.PI/2:0; });
   // 플레이어 캐리 — 경로에 투영해 접선 방향으로 이동시켜 코너에서도 돌아감
-  if(G.screen!=="GAME"||G.role==="ghost"||G.spectating)return;
+  // (구경하기 중에도 실제 위치는 계속 벨트를 따라 움직여야 하므로 G.spectating이어도 캐리합니다)
+  if(G.screen!=="GAME"||G.role==="ghost")return;
   if(Math.abs(G.pos.y-b.top)>0.6)return;               // 벨트 위에 서 있을 때만
   const pr=beltProject(G.pos.x,G.pos.z,b);
   if(pr.dist>b.w/2+0.7)return;                          // 벨트 밴드 위가 아니면 제외
@@ -1884,12 +1895,12 @@ function updateBookCarts(dt){
     const p=c.cfg.path(t); const nx=p.x, nz=p.z;
     if(!c.started){ c.cur.set(nx,0,nz); c.prev.copy(c.cur); c.started=true; }
     c.prev.copy(c.cur);
-    // 플레이어가 위에 타고 있는지
-    const onTop=(G.screen==="GAME"&&!G.spectating&&G.role!=="ghost"&&
+    // 플레이어가 위에 타고 있는지 (구경하기 중에도 실제 위치는 계속 수레를 따라 움직여야 함)
+    const onTop=(G.screen==="GAME"&&G.role!=="ghost"&&
       Math.abs(G.pos.y-c.top)<0.5&&Math.abs(G.pos.x-c.cur.x)<c.halfW&&Math.abs(G.pos.z-c.cur.z)<c.halfD);
     // 끼임 방지: 위에 타지 않았는데 새 위치가 플레이어와 겹치면 수레 일시정지
     let cx=nx, cz=nz;
-    if(!onTop&&G.screen==="GAME"&&!G.spectating&&G.role!=="ghost"){
+    if(!onTop&&G.screen==="GAME"&&G.role!=="ghost"){
       const overlap=(G.pos.x+hx>cx-c.halfW&&G.pos.x-hx<cx+c.halfW&&
                      G.pos.z+hz>cz-c.halfD&&G.pos.z-hz<cz+c.halfD&&G.pos.y<c.top);
       if(overlap){ cx=c.prev.x; cz=c.prev.z; }
@@ -3484,13 +3495,34 @@ const Net={
     this.nick=nick;
     const {ref,get,set,onDisconnect,serverTimestamp}=this.fb;
     this.myUidInit();
-    let code;
-    for(let t=0;t<15;t++){
-      // 자유로운 4자리 코드. 전체 서버를 통틀어 중복이 없도록 발급(입장 검색이 유일하게 맞게)
-      code=String(1000+Math.floor(Math.random()*9000));
-      if(!(await this.findRoomServer(code)))break;
+    // 같은 선생님(uid)이 이 서버에 이전에 만든 방이 있다면 같은 코드를 재사용합니다.
+    // (선생님 기기가 오래 비활성으로 튕긴 뒤 방을 다시 만들어도, 학생들이 이미
+    //  스캔해 둔 QR·입력해 둔 코드가 그대로 유효해집니다.)
+    const lastKey=`er_lastRoom_${this.uid}_srv${serverIdx}`;
+    let code=null;
+    const last=localStorage.getItem(lastKey);
+    if(last){
+      try{
+        const s=await get(ref(this.db,`rooms/${last}/meta`));
+        if(s.exists()&&s.val().host===this.uid) code=last;   // 내가 만든 방이 맞을 때만 재사용
+      }catch(e){}
     }
+    if(!code){
+      for(let t=0;t<15;t++){
+        // 자유로운 4자리 코드. 전체 서버를 통틀어 중복이 없도록 발급(입장 검색이 유일하게 맞게)
+        code=String(1000+Math.floor(Math.random()*9000));
+        if(!(await this.findRoomServer(code)))break;
+      }
+    }
+    localStorage.setItem(lastKey,code);
     this.code=code; G.code=code; G.isHost=true; this._kicked=false;
+    // 방을 재사용하는 경우 이전 라운드의 참가자 흔적을 지우고 깨끗하게 다시 시작합니다.
+    await Promise.all([
+      set(ref(this.db,`rooms/${code}/players`),null),
+      set(ref(this.db,`rooms/${code}/pos`),null),
+      set(ref(this.db,`rooms/${code}/presence`),null),
+      set(ref(this.db,`rooms/${code}/kicks`),null),
+    ]);
     await set(ref(this.db,`rooms/${code}/meta`),{host:this.uid,phase:"LOBBY",phaseEndsAt:0,round:0,
       settings:{paintSec:60,seekSec:180},hostRole:"spectator",manualSeekers:null,mapId:"classroom"});
     await set(ref(this.db,`rooms/${code}/players/${this.uid}`),
@@ -4141,6 +4173,43 @@ function describeClassroomPosition(p){
   if(Math.abs(p.x)<38&&Math.abs(p.z)<27)return "책상과 의자 사이"+high;
   return "교실 한쪽 구석"+high;
 }
+function describeSciencePosition(p){
+  const high=p.y>15?" · 높은 곳":p.y>6?" · 실험대 위":"";
+  if(p.z<-30)return "칠판과 시범대 근처"+high;
+  if(p.x<-45)return "약품장 쪽"+high;
+  if(p.x>42&&p.z<20)return "계단식 기구장·화분 쪽"+high;
+  if(p.z>32&&p.x<0)return "해골 모형·안전샤워 쪽"+high;
+  if(p.z>32&&p.x>=0&&p.x<35)return "교사 책상·시약냉장고 쪽"+high;
+  if(p.z>32&&p.x>=35)return "사물함·싱크대 쪽"+high;
+  if(Math.abs(p.x)<20&&Math.abs(p.z)<30)return "학생 실험대 사이"+high;
+  return "과학실 한쪽 구석"+high;
+}
+function describeCafeteriaPosition(p){
+  const high=p.y>15?" · 높은 곳":p.y>6?" · 식탁 위":"";
+  if(p.z<-30)return "배식대 근처"+high;
+  if(p.x<-35&&p.z<-15)return "국솥 근처"+high;
+  if(p.x>42&&p.z<-15)return "우유냉장고·정수기 쪽"+high;
+  if(p.z>28)return "식판 반납대·컨베이어 쪽"+high;
+  if(Math.abs(p.x)<25&&p.z>=-15&&p.z<=28)return "식탁 사이"+high;
+  return "급식실 한쪽 구석"+high;
+}
+function describeLibraryPosition(p){
+  const high=p.y>15?" · 높은 곳":p.y>6?" · 책장 위":"";
+  if(Math.abs(p.x)>12&&Math.abs(p.x)<52&&Math.abs(p.z)<32)return "책장 사이"+high;
+  if(p.z<-32)return "사서 데스크·신간 전시대 쪽"+high;
+  if(p.z>28&&p.x<25)return "그림책 서가·게시판 쪽"+high;
+  if(p.z>28&&p.x>=25)return "지구본·소파존 쪽"+high;
+  if(p.x<-42&&p.z<-25)return "빈백존 쪽"+high;
+  if(Math.abs(p.x)<12&&Math.abs(p.z)<20)return "열람 테이블 근처"+high;
+  return "도서관 한쪽 구석"+high;
+}
+/* 결과 화면 위치 설명 — 현재 맵에 맞는 설명 함수로 분기(전엔 항상 교실 기준으로 설명되던 문제 수정) */
+function describeHidePosition(p){
+  if(currentMapId==="science")return describeSciencePosition(p);
+  if(currentMapId==="cafeteria")return describeCafeteriaPosition(p);
+  if(currentMapId==="library")return describeLibraryPosition(p);
+  return describeClassroomPosition(p);
+}
 function buildResultRevealList(){
   return Object.entries(Net.players)
     .filter(([uid,p])=>p.role==="hider")
@@ -4186,7 +4255,7 @@ function updateResultReveal(){
   if(resultTour.lastIndex!==idx){
     resultTour.lastIndex=idx;
     $("revealName").textContent=`${item.found?"🔎":"🏆"} ${item.nick}`;
-    $("revealPlace").textContent=`${describeClassroomPosition(p)}에서 숨었습니다.`;
+    $("revealPlace").textContent=`${describeHidePosition(p)}에서 숨었습니다.`;
     $("revealProgress").textContent=`숨은 위치 공개 ${idx+1} / ${resultTour.list.length}`;
   }
 }
@@ -4847,6 +4916,8 @@ function updateTeacherPanelUI(){
       label="술래 대기 중…";
     }
     $("tvFollowName").textContent=label;
+    // 숨는 시간(찾는 시간이 아닐 때)엔 위치가 드러나지 않도록 일부러 벽 밖 조망만 보여줍니다.
+    $("tvBlockedNotice").classList.toggle("hidden",G.phase==="SEEK");
   }
 }
 function updateTVCamera(){
@@ -5057,6 +5128,7 @@ function checkEmbedded(dt){
     }
   }else embedTime=0;
 }
+const _specGimmickPrev=new THREE.Vector3(), _specGimmickDelta=new THREE.Vector3();
 let lastT=performance.now();
 function loop(){
   requestAnimationFrame(loop);
@@ -5073,7 +5145,12 @@ function loop(){
   }else if(G.screen==="ROULETTE"){
     updateRouletteScreen();
   }
+  // 구경하기(자유 관전) 중에도 컨베이어·책수레 같은 무빙 플랫폼 위에 숨어있다면
+  // 실제 위치(G.pos)가 계속 실려 움직이므로, 화면에 보이는 '숨은 지우개' 표시 위치도
+  // 그 이동만큼 함께 따라가도록 매 프레임 반영합니다(카메라 자유이동과는 별개).
+  if(G.spectating)_specGimmickPrev.copy(G.pos);
   updateMapGimmicks(dt);   // 신규 맵 기믹(과학실 정전·급식실 3종·도서관 책수레). 화면 무관 호출로 조명 복구 보장.
+  if(G.spectating){ G.specAnchorPos.add(_specGimmickDelta.copy(G.pos).sub(_specGimmickPrev)); syncLocalFairy(); }
   renderer.render(scene,camera);
 }
 loop();
