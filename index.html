@@ -152,12 +152,21 @@ label.chk input{width:20px;height:20px;}
   text-shadow:0 0 26px #ff8a00,4px 4px 0 rgba(0,0,0,.55);
   pointer-events:none;animation:frozenPulse 0.55s ease-in-out infinite;}
 #centerAlert.hidden{display:none;}
-#lobbyPracticeBox{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;
+#lobbyPracticeBox,#serverPickBox{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;
   background:rgba(0,0,0,.5);padding:16px;pointer-events:auto;}
-#lobbyPracticeBox.hidden{display:none;}
-#lobbyPracticeBox .lpCard{background:var(--cream);border:3px solid var(--ink);border-radius:16px;
+#lobbyPracticeBox.hidden,#serverPickBox.hidden{display:none;}
+#lobbyPracticeBox .lpCard,#serverPickBox .lpCard{background:var(--cream);border:3px solid var(--ink);border-radius:16px;
   padding:18px 20px;max-width:520px;width:100%;max-height:88vh;overflow-y:auto;text-align:center;
   box-shadow:5px 5px 0 rgba(0,0,0,.3);}
+/* 서버 선택 행: 이름 + 사용량 게이지 + 인원 */
+.srvRow{display:flex;align-items:center;gap:10px;border:3px solid var(--ink);border-radius:12px;
+  background:#fff;padding:10px 14px;margin:8px 0;cursor:pointer;box-shadow:2px 2px 0 rgba(0,0,0,.2);}
+.srvRow:not(.disabled):hover{background:var(--yellow);}
+.srvRow.disabled{opacity:.45;cursor:default;box-shadow:none;}
+.srvRow .srvName{font-size:15px;font-weight:800;min-width:78px;text-align:left;}
+.srvRow .srvBarWrap{flex:1;height:14px;border:2px solid var(--ink);border-radius:7px;background:#eee;overflow:hidden;}
+.srvRow .srvBar{height:100%;width:0%;background:var(--blue);transition:width .4s;}
+.srvRow .srvCount{font-size:13px;font-weight:800;min-width:96px;text-align:right;}
 @keyframes frozenPulse{0%,100%{transform:translate(-50%,-50%) scale(1);}50%{transform:translate(-50%,-50%) scale(1.08);}}
 
 /* ===== v2: 기록 모달 ===== */
@@ -552,6 +561,18 @@ label.chk input{width:20px;height:20px;}
   </div>
 </div>
 
+<!-- 방 개설: Firebase 서버 선택 (선생님 코드 통과 후) -->
+<div id="serverPickBox" class="hidden">
+  <div class="lpCard">
+    <h3 style="margin-bottom:6px;">🖥 서버 선택</h3>
+    <div class="note" style="margin-bottom:8px;">게임방을 만들 서버를 골라주세요. 서버당 동시접속 100명이에요.</div>
+    <div id="serverListBox"></div>
+    <div class="row" style="margin-top:12px;justify-content:center;">
+      <button id="btnServerPickClose" class="secondary">닫기</button>
+    </div>
+  </div>
+</div>
+
 <div id="paintPanel" class="hidden">
   <button id="panelToggle">🎨 물감 접기</button>
   <canvas id="hsvWheel" width="120" height="120"></canvas>
@@ -617,6 +638,22 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "339975933322",
   appId: "1:339975933322:web:659fbb9d43ae63f0f8cc73"
 };
+
+/* ============================================================
+   멀티 서버 — 한 서버(Firebase 프로젝트)당 동시접속 약 100명.
+   새 서버를 열려면 위와 같은 config 객체를 만들어 아래 null 자리에 넣으면
+   자동으로 '준비중'이 풀리고 선택 가능해집니다.
+   ★ 방 코드 첫 자리 = 서버 번호 (서버1 방은 1○○○, 서버2 방은 2○○○ …)
+     → 학생은 서버를 몰라도 코드/QR만으로 맞는 서버에 자동 연결됩니다.
+   ============================================================ */
+const FIREBASE_SERVERS=[
+  {idx:1,name:"서버 1",config:FIREBASE_CONFIG},
+  {idx:2,name:"서버 2",config:null},
+  {idx:3,name:"서버 3",config:null},
+  {idx:4,name:"서버 4",config:null},
+  {idx:5,name:"서버 5",config:null},
+];
+const SERVER_CAP=100;   // 서버당 동시접속 한도(표시용)
 
 /* ================= 유틸 ================= */
 const $=id=>document.getElementById(id);
@@ -3278,10 +3315,11 @@ const Net={
   players:{}, presence:{}, positions:{}, meta:{}, offset:0, posTimer:null, heartbeatTimer:null, texTimer:null, hostTimer:null,
   phaseAdvanceLock:false,
   _suppressInitialPhase:false,
-  async initFirebase(){
-    if(this.db)return true;
-    if(!FIREBASE_CONFIG||!FIREBASE_CONFIG.databaseURL){
-      $("setupNotice").textContent="⚠️ Firebase 설정이 비어 있어요. 코드 상단 FIREBASE_CONFIG에 설정을 붙여넣으면 멀티플레이가 켜집니다. (혼자 연습 모드는 지금도 가능!)";
+  async initFirebase(serverIdx=1){
+    const srv=FIREBASE_SERVERS[serverIdx-1];
+    if(this.db&&this.serverIdx===serverIdx)return true;
+    if(!srv||!srv.config||!srv.config.databaseURL){
+      $("setupNotice").textContent=`⚠️ ${srv?srv.name:"해당 서버"}는 아직 준비 중이에요. 다른 서버를 선택해 주세요.`;
       $("setupNotice").classList.remove("hidden");
       return false;
     }
@@ -3289,8 +3327,10 @@ const Net={
       const appM=await import("https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js");
       const dbM=await import("https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js");
       this.fb=dbM;
-      const app=appM.initializeApp(FIREBASE_CONFIG);
+      // 서버별 이름 있는 앱으로 초기화(인원 조회와 앱 인스턴스 공유)
+      let app; try{ app=appM.getApp("srv"+serverIdx); }catch(_e){ app=appM.initializeApp(srv.config,"srv"+serverIdx); }
       this.db=dbM.getDatabase(app);
+      this.serverIdx=serverIdx;
       dbM.onValue(dbM.ref(this.db,".info/serverTimeOffset"),s=>{this.offset=s.val()||0;});
       // ── 실시간 연결 진단 ──
       // Firebase는 WebSocket이 막히면 자동으로 느린 방식(long-polling)으로 전환합니다.
@@ -3307,7 +3347,7 @@ const Net={
         // 실시간 연결은 막혔지만 REST(일반 https)는 되는지 확인해 원인을 좁힙니다
         let restOk=false;
         try{
-          const r=await fetch(FIREBASE_CONFIG.databaseURL.replace(/\/$/,"")+"/.json?shallow=true",{signal:AbortSignal.timeout(5000)});
+          const r=await fetch(srv.config.databaseURL.replace(/\/$/,"")+"/.json?shallow=true",{signal:AbortSignal.timeout(5000)});
           restOk=r.ok;
         }catch(e){}
         const msg=restOk
@@ -3347,14 +3387,15 @@ const Net={
     localStorage.setItem("er_uid",u); sessionStorage.setItem("er_uid",u);
     this.uid=u; return u;
   },
-  async createRoom(nick){
-    if(!await this.initFirebase())return false;
+  async createRoom(nick,serverIdx=1){
+    if(!await this.initFirebase(serverIdx))return false;
     this.nick=nick;
     const {ref,get,set,onDisconnect,serverTimestamp}=this.fb;
     this.myUidInit();
     let code;
     for(let t=0;t<12;t++){
-      code=String(1000+Math.floor(Math.random()*9000));
+      // 방 코드 첫 자리 = 서버 번호 → 학생 입장 시 자동으로 맞는 서버에 연결
+      code=String(serverIdx*1000+Math.floor(Math.random()*1000));
       const s=await get(ref(this.db,`rooms/${code}/meta`));
       if(!s.exists())break;
     }
@@ -3367,11 +3408,17 @@ const Net={
     onDisconnect(ref(this.db,`rooms/${code}/players/${this.uid}`)).remove();
     onDisconnect(ref(this.db,`rooms/${code}/pos/${this.uid}`)).remove();
     onDisconnect(ref(this.db,`rooms/${code}/presence/${this.uid}`)).remove();
+    set(ref(this.db,`presence/${this.uid}`),{online:true,lastSeen:serverTimestamp()}).catch(()=>{}); // 서버 전체 인원 집계용
+    onDisconnect(ref(this.db,`presence/${this.uid}`)).remove();
     this.attach(); this.startHostLoop();
     return true;
   },
   async joinRoom(code,nick){
-    if(!await this.initFirebase())return "nofb";
+    // 방 코드 첫 자리 = 서버 번호. (1~5 밖이면 예전 코드 → 서버1로 시도)
+    const sIdx=(+code[0]>=1&&+code[0]<=5)?+code[0]:1;
+    const srv=FIREBASE_SERVERS[sIdx-1];
+    if(!srv||!srv.config)return "prep";
+    if(!await this.initFirebase(sIdx))return "nofb";
     this.nick=nick;
     const {ref,get,set,onDisconnect,serverTimestamp}=this.fb;
     this.myUidInit();
@@ -3395,6 +3442,8 @@ const Net={
     onDisconnect(ref(this.db,`rooms/${code}/players/${this.uid}`)).remove();
     onDisconnect(ref(this.db,`rooms/${code}/pos/${this.uid}`)).remove();
     onDisconnect(ref(this.db,`rooms/${code}/presence/${this.uid}`)).remove();
+    set(ref(this.db,`presence/${this.uid}`),{online:true,lastSeen:serverTimestamp()}).catch(()=>{}); // 서버 전체 인원 집계용
+    onDisconnect(ref(this.db,`presence/${this.uid}`)).remove();
     // 입장 직후 발생하는 최초 meta 콜백이 화면 전환을 중복으로 일으키지 않도록 한 번 무시합니다.
     this._suppressInitialPhase=true;
     this.attach(); if(G.isHost)this.startHostLoop();
@@ -3457,13 +3506,19 @@ const Net={
         lastSeen:serverTimestamp()
       }).catch(()=>{});
       set(pRef,{online:true,lastSeen:serverTimestamp()}).catch(()=>{});
-      onDisconnect(pRef).remove();onDisconnect(meRef).remove();onDisconnect(posRef).remove();
+      const gRef=ref(this.db,`presence/${this.uid}`);
+      set(gRef,{online:true,lastSeen:serverTimestamp()}).catch(()=>{});
+      onDisconnect(pRef).remove();onDisconnect(meRef).remove();onDisconnect(posRef).remove();onDisconnect(gRef).remove();
     });
     if(this.heartbeatTimer)clearInterval(this.heartbeatTimer);
     this.heartbeatTimer=setInterval(()=>{
       const stamp=serverTimestamp();
-      update(ref(this.db,`rooms/${this.code}`),{
-        [`players/${this.uid}/lastSeen`]:stamp,[`presence/${this.uid}/online`]:true,[`presence/${this.uid}/lastSeen`]:stamp
+      update(ref(this.db),{
+        [`rooms/${this.code}/players/${this.uid}/lastSeen`]:stamp,
+        [`rooms/${this.code}/presence/${this.uid}/online`]:true,
+        [`rooms/${this.code}/presence/${this.uid}/lastSeen`]:stamp,
+        [`presence/${this.uid}/online`]:true,        // 서버 전체 인원 집계용
+        [`presence/${this.uid}/lastSeen`]:stamp
       }).catch(()=>{});
     },5000);
     const positionsRef=ref(this.db,`rooms/${this.code}/pos`);
@@ -4295,21 +4350,62 @@ function getNick(){
 $("nickInput").value=localStorage.getItem("er_nick")||"";
 $("btnJoinOpen").onclick=()=>{ $("joinBox").classList.toggle("hidden");
   $("codeInput").value=localStorage.getItem("er_code")||""; };
-$("btnCreate").onclick=async()=>{
+$("btnCreate").onclick=()=>{
   Audio2.resume();
   const teacherCode=prompt("선생님 방 만들기 코드를 입력해 주세요.");
   if(teacherCode===null)return;
   if(teacherCode.trim()!=="하루담이"){$("titleNote").textContent="선생님 코드가 올바르지 않아요.";return;}
   const n=getNick()||"선생님"; $("nickInput").value=n;
-  const btn=$("btnCreate");
-  btn.disabled=true; $("titleNote").textContent="방을 만드는 중...";
+  openServerPicker(n);   // 코드 통과 → 서버 선택 → 방 개설
+};
+/* ── 서버 인원 조회: 해당 서버 /presence에서 최근 90초 내 하트비트만 집계 ── */
+async function countServerOnline(srv){
   try{
-    const ok=await Net.createRoom(n);
+    const appM=await import("https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js");
+    const dbM=await import("https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js");
+    let app; try{ app=appM.getApp("srv"+srv.idx); }catch(_e){ app=appM.initializeApp(srv.config,"srv"+srv.idx); }
+    const db=dbM.getDatabase(app);
+    const snap=await dbM.get(dbM.ref(db,"presence"));
+    if(!snap.exists())return 0;
+    const now=Date.now(); let n=0;
+    Object.values(snap.val()).forEach(p=>{ if(p&&p.online&&typeof p.lastSeen==="number"&&now-p.lastSeen<90000)n++; });
+    return n;
+  }catch(e){ console.warn(srv.name+" 인원 조회 실패",e); return null; }
+}
+function openServerPicker(nick){
+  const list=$("serverListBox"); list.innerHTML="";
+  FIREBASE_SERVERS.forEach(srv=>{
+    const row=document.createElement("div");
+    row.className="srvRow"+(srv.config?"":" disabled");
+    row.innerHTML=`<div class="srvName">🖥 ${srv.name}</div>
+      <div class="srvBarWrap"><div class="srvBar" id="srvBar${srv.idx}"></div></div>
+      <div class="srvCount" id="srvCount${srv.idx}">${srv.config?"인원 확인 중…":"준비중"}</div>`;
+    if(srv.config) row.onclick=()=>createRoomOnServer(nick,srv.idx);
+    list.appendChild(row);
+  });
+  $("serverPickBox").classList.remove("hidden");
+  // 살아있는 서버들의 접속 인원 비동기 표시
+  FIREBASE_SERVERS.filter(s=>s.config).forEach(async srv=>{
+    const n=await countServerOnline(srv);
+    const c=$("srvCount"+srv.idx), b=$("srvBar"+srv.idx);
+    if(!c)return;
+    if(n==null){ c.textContent="조회 실패"; return; }
+    c.textContent=`${n} / ${SERVER_CAP}명`+(n>=SERVER_CAP?" 🈵":"");
+    if(b){ b.style.width=Math.min(100,n/SERVER_CAP*100)+"%";
+      b.style.background=n>=SERVER_CAP*0.9?"var(--red)":(n>=SERVER_CAP*0.6?"#e07f3e":"var(--blue)"); }
+  });
+}
+async function createRoomOnServer(nick,serverIdx){
+  $("serverPickBox").classList.add("hidden");
+  const btn=$("btnCreate");
+  btn.disabled=true; $("titleNote").textContent=`${FIREBASE_SERVERS[serverIdx-1].name}에 방을 만드는 중...`;
+  try{
+    const ok=await Net.createRoom(nick,serverIdx);
     if(!ok){
       $("titleNote").textContent="Firebase 연결에 실패했어요. 화면 아래 오류 안내를 확인해 주세요.";
       return;
     }
-    Net.mode="online"; G.nick=n;
+    Net.mode="online"; G.nick=nick;
     enterLobby();
   }catch(err){
     console.error("방 만들기 실패:",err);
@@ -4317,7 +4413,9 @@ $("btnCreate").onclick=async()=>{
   }finally{
     btn.disabled=false;
   }
-};
+}
+$("btnServerPickClose").onclick=()=>$("serverPickBox").classList.add("hidden");
+$("serverPickBox").onclick=e=>{ if(e.target===$("serverPickBox"))$("serverPickBox").classList.add("hidden"); };
 $("btnJoin").onclick=async()=>{
   Audio2.resume();
   const n=getNick(); if(!n)return;
@@ -4328,6 +4426,7 @@ $("btnJoin").onclick=async()=>{
   try{
     const res=await Net.joinRoom(code,n);
     if(res==="noroom"){ $("titleNote").textContent="그 코드의 방을 찾을 수 없어요."; return; }
+    if(res==="prep"){ $("titleNote").textContent="그 방은 아직 준비 중인 서버에 있어요. 코드를 다시 확인해 주세요."; return; }
     if(res==="full"){ $("titleNote").textContent="방이 가득 찼어요! (최대 50명)"; return; }
     if(res!=="ok"){ $("titleNote").textContent="Firebase 연결에 실패했어요. 화면 아래 오류 안내를 확인해 주세요."; return; }
     Net.mode="online"; G.nick=n; localStorage.setItem("er_code",code);
