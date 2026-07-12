@@ -127,8 +127,8 @@ label.chk input{width:20px;height:20px;}
 /* ===== v2: TV 조망 HUD ===== */
 #tvHud{position:fixed;inset:0;z-index:37;pointer-events:none;display:flex;flex-direction:column;align-items:center;}
 #tvHud.hidden{display:none;}
-#tvTimer{margin-top:18px;font-size:clamp(40px,9vw,70px);color:#fff;text-shadow:3px 3px 0 rgba(0,0,0,.6);}
-#tvRemain{font-size:clamp(18px,3vw,26px);color:var(--yellow);text-shadow:2px 2px 0 rgba(0,0,0,.6);margin-top:4px;}
+#tvTimer{margin-top:18px;font-size:clamp(56px,12vw,96px);color:#fff;text-shadow:4px 4px 0 rgba(0,0,0,.6);}
+#tvRemain{font-size:clamp(24px,4vw,34px);color:var(--yellow);text-shadow:3px 3px 0 rgba(0,0,0,.6);margin-top:6px;font-weight:800;}
 #tvLog{margin-top:10px;display:flex;flex-direction:column;gap:3px;align-items:center;}
 #tvLog div{font-size:16px;color:#fff;background:rgba(0,0,0,.4);padding:3px 12px;border-radius:8px;}
 /* v3: 숨는 시간엔 위치를 일부러 안 보여준다는 안내(화면 중앙) */
@@ -542,7 +542,7 @@ label.chk input{width:20px;height:20px;}
   <div id="tvRemain">남은 요정: -</div>
   <div id="tvLog"></div>
   <div id="tvBlockedNotice" class="hidden">
-    <div class="big">🙈 숨는 시간에는 위치를 보여주지 않아요</div>
+    <div class="big">🙈 숨는 시간에는<br>위치를 보여주지 않아요</div>
     <div class="small">찾는 시간이 되면 술래를 따라 화면을 중계할게요!</div>
   </div>
 </div>
@@ -1286,11 +1286,13 @@ function buildScienceLab(){
     }
   });
 
-  // ── 우측 벽: 기구장 + 비커·플라스크 + 화분 + 수조 ──
-  const eqX=ROOM_W/2-5;
-  addBox(9,10,10,lambert({color:0xaeb4b8}),eqX+0.5,5,10);              // 기구장 몸체
-  [[3.5,5],[7.5,5],[3.5,15],[7.5,15]].forEach(([dy,dz],i)=>            // 유리 기구
-    addCyl(0.9,2.4,lambert({color:RB16[(i*3)%RB16.length]}),eqX-3,dy,10-5+dz-5,{rt:0.7,collide:false,sample:true}));
+  // ── 우측 벽: 기구장(앞판을 없애 속이 보이고, 도구는 뒤에서 실제 배치 — allTools 정의 뒤에서 채움) + 화분 + 수조 ──
+  const eqX=ROOM_W/2-5, eqCabMat=lambert({color:0xaeb4b8}), eqShelfMat=lambert({color:0xc3c9cd});
+  addBox(0.4,10,10,eqCabMat,eqX+4.8,5,10);                              // 뒷벽(실제 충돌)
+  addBox(9,10,0.4,eqCabMat,eqX+0.5,5,4.8);                              // 옆판(z-, 실제 충돌)
+  addBox(9,10,0.4,eqCabMat,eqX+0.5,5,15.2);                             // 옆판(z+, 실제 충돌)
+  addBox(9,0.4,10,eqCabMat,eqX+0.5,10.2,10);                            // 위판(실제 충돌) — 앞판은 없어 속이 보임
+  [3.5,7.1].forEach(sy=>addBox(8.6,0.3,9.4,eqShelfMat,eqX+0.5,sy,10,{collide:true,sample:false})); // 선반 2단(실제 충돌)
   addCyl(2.2,3.0,lambert({color:0x6f4a2a}),ROOM_W/2-6,1.5,-32,{rt:1.8}); // 화분 통
   addCyl(1.8,4.5,lambert({color:0x3f9d5a}),ROOM_W/2-6,4.5,-32,{rt:0.3,collide:true,sample:true}); // 화분 잎(파고들어 숨지 못하게 충돌)
   addBox(8,4,6,lambert({color:0x8fd0e6,transparent:true,opacity:0.6}),ROOM_W/2-6,3,30); // 수조
@@ -1306,7 +1308,8 @@ function buildScienceLab(){
     const cs=["#E64545","#F5C518","#3f9d5a","#4A7FB5","#e07f3e","#8a5ab9"];
     for(let i=0;i<6;i++){g.fillStyle=cs[i];g.fillRect(8+ (i%3)*64,8+Math.floor(i/3)*64,58,58);} });
   const safe=new THREE.Mesh(new THREE.PlaneGeometry(20,14),lambert({map:safeTex}));
-  safe.position.set(-6,20,ROOM_D/2-0.4); safe.rotation.y=Math.PI; mapRoot.add(safe); samplables.push(safe);
+  // 전엔 뒷벽 중앙(-6,20)이라 상부 유리장(x=-18~+37)에 가려 안 보였음 → 유리장이 없는 뒷벽 좌측 빈 공간으로 이동
+  safe.position.set(-37,21,ROOM_D/2-0.4); safe.rotation.y=Math.PI; mapRoot.add(safe); samplables.push(safe);
   // 싱크대(개수대) = 물통 리필존
   addBox(16,3,5,lambert({color:0xc7ccd2}),ROOM_W/2-11,1.5,ROOM_D/2-4);
   addBox(14,0.4,4,lambert({color:0x8fb3c4}),ROOM_W/2-11,3.05,ROOM_D/2-4,{collide:false,sample:true});
@@ -1356,6 +1359,15 @@ function buildScienceLab(){
   };
   // 도구 7종(플라스크·비커·메스실린더·드로퍼·온도계·시험관랙·알코올램프)을 고르게 순환 배치
   const allTools=[flaskErlen,beakerTool,cylinderTool,dropperTool,thermoTool,tubeRackTool,burnerTool];
+  // 우측 기구장(위에서 앞판을 없앤 그 장) 안쪽 2단 선반에 도구를 실제로 배치 — 각자 실제 충돌
+  [3.6,7.2].forEach((sy,ri)=>{
+    [6.5,10,13.5].forEach((tz,k)=>{
+      const fn=allTools[(ri*3+k*2)%allTools.length], cc=RB16[(ri*4+k*3)%RB16.length];
+      if(fn===tubeRackTool) tubeRackTool(eqX-0.6,sy,tz,ri*13+k*5+11);
+      else if(fn===burnerTool) burnerTool(eqX-0.6,sy,tz);
+      else fn(eqX-0.6,sy,tz,cc);
+    });
+  });
   const CAB_Y=22;   // 낮아진 천장(33)에 맞춰 벽장을 사람 눈높이로 내림(전엔 40으로 너무 높았음)
   // 유리문 상부 벽장(뒷벽, 유리 안 실험기구 2단 선반) — 이미지 1·2
   [-18,-2,14,30].forEach((cx,ci)=>{
@@ -1526,7 +1538,11 @@ function buildCafeteria(){
   cafeMenu.forEach((d,i)=>{ const tx=x0+i*step; dish(tx,d[0],d[1],d[2],d[3]);
     if(i%2) addBox(1.2,0.9,0.1,lambert({color:0xffffff}),tx,5.5,czf+2.5,{collide:false,sample:false}); }); // 가격표 텐트카드
   // 접시탑(흰 접시 무더기, 이미지 1·5) — 배식대 양끝
-  const plateStack=(x,z,n)=>{ for(let k=0;k<n;k++) addCyl(1.3,0.12,lambert({color:0xf4f4f4}),x,5.0+k*0.14,z,{rt:1.3,collide:false,sample:false}); };
+  const plateStack=(x,z,n)=>{
+    for(let k=0;k<n;k++) addCyl(1.3,0.12,lambert({color:0xf4f4f4}),x,5.0+k*0.14,z,{rt:1.3,collide:false,sample:false});
+    const stackH=(n-1)*0.14+0.12, cy=5.0+(n-1)*0.14/2;
+    addCyl(1.3,stackH,lambert({color:0xf4f4f4}),x,cy,z,{rt:1.3,collide:true,sample:false});   // 접시탑 전체를 감싸는 충돌(파고들지 못하게)
+  };
   plateStack(-30,czf-1.4,10); plateStack(30,czf-1.4,10); plateStack(30,czf+1.2,8);
   // 소스/드레싱 스테이션(우측 끝) = 리필존
   addBox(6,5,6,lambert({color:0xdfe4e8}),36,2.5,czf);
@@ -1836,12 +1852,14 @@ function buildLibrary(){
   const libTree=(x,z,s)=>{
     addCyl(0.9*s,1.0*s,lambert({color:0x8a5a33}),x,0.5*s,z,{rt:1.0*s});                                  // 화분(장애물)
     addCyl(0.95*s,0.3*s,lambert({color:0x5a3f28}),x,1.05*s,z,{rt:0.9*s,collide:false,sample:false});     // 흙
-    addCyl(0.22*s,3.6*s,lambert({color:0x7a5a3a}),x,2.6*s,z,{collide:false});                            // 줄기
-    [[0,4.4,0,1.5],[-0.9,3.9,0.5,1.1],[0.9,4.1,-0.4,1.2],[0.3,5.1,0.2,1.0]].forEach(([ox,oy,oz,r])=>{
-      const f=new THREE.Mesh(new THREE.SphereGeometry(r*s,8,7),lambert({color:0x4f9a3e}));
-      f.position.set(x+ox*s,oy*s,z+oz*s); mapRoot.add(f); samplables.push(f);
-      addMeshCollider(f,0.04*s);   // 캐노피 잎 뭉치도 실제 충돌 — 날아서 안으로 파고들어 숨는 것 방지
-    });
+    addCyl(0.24*s,2.6*s,lambert({color:0x7a5a3a}),x,2.5*s,z,{collide:false});                            // 줄기
+    // 캐노피: 사진 속 나무처럼 둥근 잎 뭉치 하나로(전엔 작은 구 4개가 따로 떨어져 보여 어색했음) +
+    // 밝은 초록 하이라이트를 앞쪽 위에 겹쳐 입체감만 살짝 추가
+    const canopy=new THREE.Mesh(new THREE.SphereGeometry(2.1*s,10,8),lambert({color:0x4a9a3f}));
+    canopy.position.set(x,5.0*s,z); canopy.scale.y=0.94; mapRoot.add(canopy); samplables.push(canopy);
+    addMeshCollider(canopy,0.04*s);   // 캐노피 전체가 실제 충돌 — 날아서 안으로 파고들어 숨는 것 방지
+    const hi=new THREE.Mesh(new THREE.SphereGeometry(1.3*s,9,7),lambert({color:0x6ab853}));
+    hi.position.set(x-0.35*s,5.7*s,z+0.25*s); mapRoot.add(hi); samplables.push(hi);   // 밝은 하이라이트(장식용, 충돌은 큰 구가 이미 감쌈)
   };
   [[0,-15,1.2],[0,15,1.2],[-40,32,1.3],[40,22,1.3],[40,-30,1.1]].forEach(([x,z,s])=>libTree(x,z,s));
   // 서가 분류 라벨(파란 배너, 이미지 3) — 각 서가 정면(-z) 끝
@@ -1874,19 +1892,43 @@ function buildCart(cfg){
   const box=(w,h,d,mat,x,y,z)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat); m.position.set(x,y,z); g.add(m); return m; };
   const wood=lambert({color:cfg.color});
   [[-2.3,-1],[2.3,-1],[-2.3,1],[2.3,1]].forEach(([x,z])=>box(0.3,2.6,0.3,wood,x,1.3,z)); // 기둥
-  [0.7,1.55,2.4].forEach((y,ti)=>{
+  const rowsY=[0.7,1.55,2.4];
+  // 뺄 책 한 칸은 반드시 맨 아래 칸(바닥에 서 있는 지우개 몸이 실제로 닿는 높이)에서만 고릅니다.
+  // 가운데·위 칸은 서 있는 키(바닥 기준 1.45)로는 닿지 않는 높이라, 거기 틈을 뚫어도 실제로
+  // 들어가 숨을 수 없기 때문입니다. 1차 카운트도 같은 이유로 맨 아래 칸만 세면 됩니다.
+  let bottomCount=0;
+  { const rnd=mulberry32(cfg.seed); let x=-2.2;
+    while(x<2.0){ const bw=0.5+rnd()*0.4; rnd(); rnd(); bottomCount++; x+=bw+0.05; } }
+  const gapIndex=Math.floor(mulberry32(cfg.seed+777)()*bottomCount);
+  // 2차: 실제로 책을 놓되 맨 아래 칸의 gapIndex번째만 비워 그 틈으로 지우개가 들어가 숨을 수 있게 합니다.
+  //     나머지 책은 로컬 좌표를 기록해 두었다가, 수레가 움직일 때마다 그 위치를 그대로 따라가는
+  //     실제 충돌체(bookBox3s)를 갖습니다.
+  const bookSlots=[];
+  rowsY.forEach((y,ti)=>{
     const shelf=box(5,0.25,2.6,wood,0,y,0); samplables.push(shelf);
-    const rnd=mulberry32(cfg.seed+ti*13); let x=-2.2;
-    while(x<2.0){ const bw=0.5+rnd()*0.4;
-      samplables.push(box(bw,1.1+rnd()*0.3,1.6,lambert({color:LIB_PAL[(rnd()*LIB_PAL.length)|0]}),x+bw/2,y+0.7,0));
-      x+=bw+0.05; }
+    const rnd=mulberry32(cfg.seed+ti*13); let x=-2.2, idx=0;
+    while(x<2.0){
+      const bw=0.5+rnd()*0.4, bh=1.1+rnd()*0.3;
+      if(ti!==0||idx!==gapIndex){
+        const mesh=box(bw,bh,1.6,lambert({color:LIB_PAL[(rnd()*LIB_PAL.length)|0]}),x+bw/2,y+0.7,0);
+        samplables.push(mesh);
+        bookSlots.push({ox:x+bw/2,oy:y+0.7,hw:bw/2,hh:bh/2,hd:0.8});
+        x+=bw+0.05;
+      }else{
+        rnd(); // 색상 난수 소모를 맞춰 이후 칸들의 색이 흔들리지 않게 함
+        x+=bw+0.9; // 이 칸은 책 한 권 폭보다 넉넉하게 비워 지우개가 실제로 들어가 숨을 수 있게 함
+      }
+      idx++;
+    }
   });
   [[-2,-1.8],[2,-1.8],[-2,1.8],[2,1.8]].forEach(([x,z])=>{                             // 바퀴
     const wl=new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.35,0.3,10),lambert({color:0x333333}));
     wl.rotation.z=Math.PI/2; wl.position.set(x,0.35,z); g.add(wl); });
   mapRoot.add(g);
-  const box3=new THREE.Box3(); colliders.push(box3);
-  Carts.push({group:g,box3,cfg,cur:new THREE.Vector3(),prev:new THREE.Vector3(),halfW:2.6,halfD:1.5,top:2.6,started:false});
+  const topBox3=new THREE.Box3(); colliders.push(topBox3);           // 위에 올라타는 용도의 얇은 발판(측면은 막지 않음)
+  const bookBox3s=bookSlots.map(()=>{ const b=new THREE.Box3(); colliders.push(b); return b; }); // 책 각각의 실제 충돌(수레를 따라 이동)
+  Carts.push({group:g,cfg,cur:new THREE.Vector3(),prev:new THREE.Vector3(),halfW:2.6,halfD:1.5,top:2.6,
+    started:false,topBox3,bookSlots,bookBox3s});
 }
 function updateBookCarts(dt){
   if(!Carts.length)return;
@@ -1908,8 +1950,13 @@ function updateBookCarts(dt){
     }
     c.cur.set(cx,0,cz);
     c.group.position.copy(c.cur);
-    c.box3.min.set(c.cur.x-c.halfW,0,c.cur.z-c.halfD);
-    c.box3.max.set(c.cur.x+c.halfW,2.6,c.cur.z+c.halfD);
+    c.topBox3.min.set(c.cur.x-c.halfW,2.45,c.cur.z-c.halfD);
+    c.topBox3.max.set(c.cur.x+c.halfW,2.75,c.cur.z+c.halfD);
+    c.bookSlots.forEach((s,i)=>{
+      const b=c.bookBox3s[i];
+      b.min.set(c.cur.x+s.ox-s.hw, s.oy-s.hh, c.cur.z-s.hd);
+      b.max.set(c.cur.x+s.ox+s.hw, s.oy+s.hh, c.cur.z+s.hd);
+    });
     if(onTop){                                        // 무빙 플랫폼 캐리(충돌 이동 함수로 적용)
       const dx=c.cur.x-c.prev.x, dz=c.cur.z-c.prev.z;
       if(dx)moveHorizontalAxis("x",dx);
@@ -4454,6 +4501,8 @@ function updateHUD(){
   updateTeacherPanelUI();
   // v2: 얼음 배너 — 얼어붙은 지우개 본인 화면에만, 얼기 시작한 순간 2초만 표시
   updateFrozenBanner();
+  // TV 중계 중엔 일반 HUD의 시간·페이즈 문구·아이콘줄이 TV 전용 타이머와 겹치므로 숨깁니다.
+  $("timerBox").classList.toggle("hidden",G.tvMode);
   if(G.tvMode){
     $("tvTimer").textContent=(G.phase==="PAINT"||G.phase==="SEEK")?fmtTime(G.remainMs):"--:--";
     const hidersArr=Object.values(Net.players||{}).filter(p=>p.role==="hider");
