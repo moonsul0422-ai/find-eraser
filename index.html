@@ -1950,7 +1950,9 @@ function buildCart(cfg){
   mapRoot.add(g);
   const topBox3=new THREE.Box3(); colliders.push(topBox3);           // 위에 올라타는 용도의 얇은 발판(측면은 막지 않음)
   const bookBox3s=bookSlots.map(()=>{ const b=new THREE.Box3(); colliders.push(b); return b; }); // 책 각각의 실제 충돌(수레를 따라 이동)
-  Carts.push({group:g,cfg,cur:new THREE.Vector3(),prev:new THREE.Vector3(),halfW:2.6,halfD:1.5,top:2.6,
+  // 위에 타는 발판(top)은 맨 윗칸 책 꼭대기(≈3.8)보다 위에 둬야 탑승자가 책과 겹쳐 끼지 않고
+  // 수레를 따라 매끄럽게 실려 다닙니다. (전엔 2.6이라 책 속에 파묻혀 캐리가 막혔음)
+  Carts.push({group:g,cfg,cur:new THREE.Vector3(),prev:new THREE.Vector3(),halfW:2.6,halfD:1.5,top:4.1,
     started:false,topBox3,bookSlots,bookBox3s});
 }
 function updateBookCarts(dt){
@@ -1973,8 +1975,8 @@ function updateBookCarts(dt){
     }
     c.cur.set(cx,0,cz);
     c.group.position.copy(c.cur);
-    c.topBox3.min.set(c.cur.x-c.halfW,2.45,c.cur.z-c.halfD);
-    c.topBox3.max.set(c.cur.x+c.halfW,2.75,c.cur.z+c.halfD);
+    c.topBox3.min.set(c.cur.x-c.halfW,3.85,c.cur.z-c.halfD);   // 책 꼭대기(≈3.8) 바로 위 얇은 발판
+    c.topBox3.max.set(c.cur.x+c.halfW,4.1,c.cur.z+c.halfD);
     c.bookSlots.forEach((s,i)=>{
       const b=c.bookBox3s[i];
       b.min.set(c.cur.x+s.ox-s.hw, s.oy-s.hh, c.cur.z-s.hd);
