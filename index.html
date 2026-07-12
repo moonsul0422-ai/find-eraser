@@ -1275,16 +1275,16 @@ function buildScienceLab(){
     sciStool(bx-3,bz-3.9,seat[ri%3]); sciStool(bx+3,bz-3.9,seat[(ri+1)%3]); sciStool(outer,bz,seat[(ri+2)%3]);
   }));
 
-  // ── 좌측 벽: 약품장 5단 + 색색 시약병(16색, 맵 최고의 색 추출 존) ──
-  const cabX=-ROOM_W/2+3.2;
-  addBox(4.4,24,42,lambert({color:0xbfc7cc}),cabX,12,0);
-  [3,7,11,15,19].forEach((sy,si)=>{
-    addBox(4.4,0.4,42,lambert({color:0xe0e5e8}),cabX,sy,0,{collide:false});
-    for(let b=0;b<10;b++){
-      const col=RB16[(si*10+b)%RB16.length];
-      addCyl(0.62,2.5,lambert({color:col}),cabX+0.5,sy+1.35,-18.5+b*4.1,{rt:0.42,sample:true,collide:false});
-    }
-  });
+  // ── 좌측 벽: 개방형 기구장(앞판 없이 속이 보이는 진열장) — 두꺼운 몸체·뒷판·선반은 실제 충돌,
+  //    안쪽 4단 선반에 실험도구를 배치(allTools 정의 뒤에서 채움). 전엔 통짜 몸체+색색 시약병 벽이었음.
+  const cabX=-ROOM_W/2+3.2, chemBodyMat=lambert({color:0xbfc7cc}), chemShelfMat=lambert({color:0xe0e5e8});
+  const chemShelfY=[4,8.6,13.2,17.8];
+  addBox(1.2,24,42,chemBodyMat,cabX-1.6,12,0);                                  // 뒷판(벽쪽, 실제 충돌)
+  addBox(4.4,1.0,42,chemBodyMat,cabX,0.5,0);                                    // 바닥판
+  addBox(4.4,1.0,42,chemBodyMat,cabX,23.5,0);                                   // 천장판
+  addBox(4.4,24,1.2,chemBodyMat,cabX,12,-20.9);                                 // 끝판(z-)
+  addBox(4.4,24,1.2,chemBodyMat,cabX,12, 20.9);                                 // 끝판(z+)
+  chemShelfY.forEach(sy=>addBox(4.0,0.35,40.6,chemShelfMat,cabX+0.1,sy,0,{collide:true,sample:false})); // 선반(실제 충돌)
 
   // ── 우측 벽: 기구장(앞판을 없애 속이 보이고, 도구는 뒤에서 실제 배치 — allTools 정의 뒤에서 채움) + 화분 + 수조 ──
   const eqX=ROOM_W/2-5, eqCabMat=lambert({color:0xaeb4b8}), eqShelfMat=lambert({color:0xc3c9cd});
@@ -1367,6 +1367,15 @@ function buildScienceLab(){
       else if(fn===burnerTool) burnerTool(eqX-0.6,sy,tz);
       else fn(eqX-0.6,sy,tz,cc);
     });
+  });
+  // 좌측 개방형 기구장(색색 시약병 벽을 없애고 연 그 장) 4단 선반에 실험도구를 실제로 배치 — 각자 실제 충돌
+  chemShelfY.forEach((sy,ri)=>{
+    for(let k=0;k<8;k++){
+      const tz=-17.5+k*5, fn=allTools[(ri*3+k)%allTools.length], cc=RB16[(ri*5+k*3)%RB16.length];
+      if(fn===tubeRackTool) tubeRackTool(cabX+0.3,sy+0.2,tz,ri*20+k+31);
+      else if(fn===burnerTool) burnerTool(cabX+0.3,sy+0.2,tz);
+      else fn(cabX+0.3,sy+0.2,tz,cc);
+    }
   });
   const CAB_Y=22;   // 낮아진 천장(33)에 맞춰 벽장을 사람 눈높이로 내림(전엔 40으로 너무 높았음)
   // 유리문 상부 벽장(뒷벽, 유리 안 실험기구 2단 선반) — 이미지 1·2
@@ -1816,16 +1825,27 @@ function buildLibrary(){
   // ================================================================
   // 참고 이미지 반영: 창밖 나무가 보이는 큰 창 · 창가 독서코너 · 실내 화분나무 · 분류 라벨
   // ================================================================
-  // 창밖 풍경(하늘 + 초록 나무) 텍스처
+  // 창밖 풍경(하늘·언덕·잔디 + 또렷한 나무 몇 그루) 텍스처
+  // 전엔 반투명 원 34개를 무작위로 흩뿌려 뭉개진 얼룩처럼 보였음 → 참고 사진처럼
+  // 기둥 + 층층이 둥근 캐노피(짙은→밝은)로 그린 나무 몇 그루로 또렷하게 다시 그림.
   const windowTex=canvasTex(256,256,(g,w,h)=>{
-    const sky=g.createLinearGradient(0,0,0,h); sky.addColorStop(0,"#bfe3f2"); sky.addColorStop(0.6,"#dff1e6"); sky.addColorStop(1,"#eef7ea");
+    const sky=g.createLinearGradient(0,0,0,h*0.7); sky.addColorStop(0,"#a9d8ee"); sky.addColorStop(1,"#dcefe0");
     g.fillStyle=sky; g.fillRect(0,0,w,h);
-    const greens=["#6fae4b","#5b9a3e","#7cbe57","#4f8a39","#8ac36a"];
-    for(let i=0;i<34;i++){ g.fillStyle=greens[i%greens.length];
-      const cx=Math.random()*w, cy=h*0.30+Math.random()*h*0.55, r=16+Math.random()*30;
-      g.globalAlpha=0.9; g.beginPath(); g.arc(cx,cy,r,0,7); g.fill(); }
-    g.globalAlpha=1; g.fillStyle="#7a5a3a";
-    for(let i=0;i<6;i++){ const x=14+i*44; g.fillRect(x,h*0.62,6,h*0.4); }
+    // 구름 두어 개
+    g.fillStyle="rgba(255,255,255,.85)";
+    [[60,44,20],[64,40,15],[190,60,22],[196,56,16]].forEach(([cx,cy,r])=>{ g.beginPath(); g.arc(cx,cy,r,0,7); g.fill(); });
+    // 먼 언덕
+    g.fillStyle="#8fb96a"; g.beginPath(); g.moveTo(0,h*0.64); g.quadraticCurveTo(w*0.5,h*0.5,w,h*0.63); g.lineTo(w,h); g.lineTo(0,h); g.fill();
+    // 잔디밭
+    g.fillStyle="#77b357"; g.fillRect(0,h*0.72,w,h*0.28);
+    // 나무 한 그루: 갈색 기둥 + 3겹 둥근 캐노피(짙은 밑 → 밝은 하이라이트)
+    const tree=(tx,base,s)=>{
+      g.fillStyle="#7a5334"; g.fillRect(tx-4*s,base-30*s,8*s,32*s);                 // 기둥
+      const layers=[["#3f7a34",0,-42,30],["#4c9440",-16,-34,22],["#4c9440",16,-36,22],
+                    ["#63b055",-6,-54,20],["#63b055",12,-48,17],["#8ecb6f",0,-60,12]];
+      layers.forEach(([c,ox,oy,r])=>{ g.fillStyle=c; g.beginPath(); g.arc(tx+ox*s,base+oy*s,r*s,0,7); g.fill(); });
+    };
+    tree(w*0.24,h*0.74,0.95); tree(w*0.6,h*0.75,1.25); tree(w*0.86,h*0.73,0.8);
   });
   // 측면 벽 고창(高窓): 서가 위로 바깥 나무가 보임 (좌우 벽)
   [-1,1].forEach(sgn=>{
@@ -1853,13 +1873,16 @@ function buildLibrary(){
     addCyl(0.9*s,1.0*s,lambert({color:0x8a5a33}),x,0.5*s,z,{rt:1.0*s});                                  // 화분(장애물)
     addCyl(0.95*s,0.3*s,lambert({color:0x5a3f28}),x,1.05*s,z,{rt:0.9*s,collide:false,sample:false});     // 흙
     addCyl(0.24*s,2.6*s,lambert({color:0x7a5a3a}),x,2.5*s,z,{collide:false});                            // 줄기
-    // 캐노피: 사진 속 나무처럼 둥근 잎 뭉치 하나로(전엔 작은 구 4개가 따로 떨어져 보여 어색했음) +
-    // 밝은 초록 하이라이트를 앞쪽 위에 겹쳐 입체감만 살짝 추가
-    const canopy=new THREE.Mesh(new THREE.SphereGeometry(2.1*s,10,8),lambert({color:0x4a9a3f}));
-    canopy.position.set(x,5.0*s,z); canopy.scale.y=0.94; mapRoot.add(canopy); samplables.push(canopy);
+    // 캐노피: 참고 그림처럼 둥글고 풍성한 잎 뭉치. 큰 구 하나를 중심으로 작은 구를 바싹 겹쳐
+    // 하나의 부풀은 공처럼 보이게 하고(전엔 작은 구 4개가 따로 떨어져 보여 어색했음),
+    // 위쪽엔 밝은 초록을 얹어 볕 든 잎 느낌만 살짝 추가.
+    const canopy=new THREE.Mesh(new THREE.SphereGeometry(2.3*s,12,10),lambert({color:0x46903c}));
+    canopy.position.set(x,5.0*s,z); canopy.scale.y=0.95; mapRoot.add(canopy); samplables.push(canopy);
     addMeshCollider(canopy,0.04*s);   // 캐노피 전체가 실제 충돌 — 날아서 안으로 파고들어 숨는 것 방지
-    const hi=new THREE.Mesh(new THREE.SphereGeometry(1.3*s,9,7),lambert({color:0x6ab853}));
-    hi.position.set(x-0.35*s,5.7*s,z+0.25*s); mapRoot.add(hi); samplables.push(hi);   // 밝은 하이라이트(장식용, 충돌은 큰 구가 이미 감쌈)
+    // 바싹 겹치는 곁잎 뭉치(장식) — 큰 구와 붙어 하나의 풍성한 공처럼 보임
+    [[-1.3,4.4,0.3,1.5,0x4a9a3f],[1.3,4.5,-0.2,1.5,0x4a9a3f],[0.2,4.3,1.3,1.4,0x4a9a3f],[0,6.2,0,1.5,0x63b055],[-0.6,5.7,0.6,1.2,0x6ab853]]
+      .forEach(([ox,oy,oz,r,cc])=>{ const b=new THREE.Mesh(new THREE.SphereGeometry(r*s,9,7),lambert({color:cc}));
+        b.position.set(x+ox*s,oy*s,z+oz*s); mapRoot.add(b); samplables.push(b); });
   };
   [[0,-15,1.2],[0,15,1.2],[-40,32,1.3],[40,22,1.3],[40,-30,1.1]].forEach(([x,z,s])=>libTree(x,z,s));
   // 서가 분류 라벨(파란 배너, 이미지 3) — 각 서가 정면(-z) 끝
